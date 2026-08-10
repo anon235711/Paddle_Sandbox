@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S1 Roster Sandbox — APTA Chicago</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--court:#0e3b2e; --court-2:#12483a; --line:#e9efe9; --ball:#d9e64a;
+  --ink:#0c211a; --chip:#f4f7f3; --warn:#e07b39;}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+body{margin:0; background:var(--court); color:var(--line);
+  font-family:'Barlow',system-ui,sans-serif; padding:14px 12px 60px;}
+header,#chartwrap,#board,#poolwrap,footer{max-width:1280px; margin-left:auto; margin-right:auto;}
+h1{font-family:'Barlow Condensed'; font-weight:700; letter-spacing:.02em;
+  font-size:clamp(24px,4vw,34px); margin:0; text-transform:uppercase;}
+h1 .ball{color:var(--ball)}
+.sub{color:#bccfc4; font-size:13px; margin-top:4px; max-width:75ch;}
+.controls{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center}
+button.pill{background:transparent; color:var(--ball); border:1.5px solid var(--ball);
+  border-radius:999px; padding:6px 16px; font:600 13px 'Barlow'; cursor:pointer}
+button.pill:active{background:var(--ball); color:var(--ink)}
+.movehint{font-size:12.5px; color:#bccfc4}
+.movehint b{color:var(--ball)}
+#chartwrap{margin-top:12px; background:var(--court-2); border:1.5px solid #23594a;
+  border-radius:10px; padding:10px 12px 4px; display:none}
+#chartwrap.open{display:block}
+#chartwrap .ct{font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f}
+#board{margin-top:12px; display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+#poolwrap{margin-top:12px;}
+.card{background:var(--court-2); border:1.5px solid #23594a; border-radius:10px;
+  overflow:hidden; display:flex; flex-direction:column;}
+.card.droptarget{outline:2.5px dashed var(--ball); outline-offset:-3px}
+.card.movable .thead{cursor:pointer}
+.card.movable .thead::after{content:"⟶ move here"; color:var(--ink); background:var(--ball);
+  font:600 11px 'Barlow'; padding:2px 8px; border-radius:999px; margin-left:8px; white-space:nowrap}
+.thead{display:flex; align-items:center; gap:8px; padding:10px 12px 8px;
+  border-bottom:2px solid var(--line); flex-wrap:wrap}
+.tname{font-family:'Barlow Condensed'; font-weight:600; font-size:19px;
+  text-transform:uppercase; letter-spacing:.03em}
+.trec{font:500 12px 'IBM Plex Mono'; color:#bccfc4}
+.count{margin-left:auto; font:500 11px 'IBM Plex Mono'; color:#8fae9f}
+.iconbtn{background:none;border:none;color:#8fae9f;font-size:13px;cursor:pointer;padding:2px 4px}
+.iconbtn:hover{color:var(--ball)}
+.stats{display:grid; grid-template-columns:repeat(4,1fr);
+  border-bottom:1.5px solid #23594a; background:#0b3226;}
+.stat{padding:7px 4px 8px; text-align:center; border-right:1px solid #1c4d3e}
+.stat:last-child{border-right:none}
+.stat .lbl{font:600 10px 'Barlow'; letter-spacing:.08em; color:#8fae9f; text-transform:uppercase}
+.stat .val{font:600 17px 'IBM Plex Mono'; color:var(--line); margin-top:1px}
+.stat .delta{font:600 10.5px 'IBM Plex Mono'; height:13px}
+.delta.better{color:var(--ball)} .delta.worse{color:var(--warn)}
+.plist{padding:8px 10px 12px; display:flex; flex-direction:column; gap:5px; min-height:56px; flex:1}
+.pool .plist{flex-direction:row; flex-wrap:wrap; gap:6px}
+.pchip{display:flex; align-items:center; gap:8px; background:var(--chip); color:var(--ink);
+  border-radius:7px; padding:6px 10px; font-size:14px; font-weight:500;
+  cursor:grab; user-select:none; border:1.5px solid transparent;}
+.pool .pchip{font-size:12.5px; padding:5px 8px; gap:6px}
+.pchip:active{cursor:grabbing}
+.pchip.selected{border-color:var(--ball); background:#fbffd6}
+.pchip.dragging{opacity:.45}
+.pchip .pti{margin-left:auto; font:600 13px 'IBM Plex Mono'}
+.pool .pchip .pti{font-size:11.5px}
+.pchip .pti.elite{color:#0d6b3f}
+.pchip .tag{font:600 10px 'IBM Plex Mono'; color:#5c6f66; background:#dfe7e0;
+  border-radius:4px; padding:1px 5px}
+.pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
+footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
+  border:1.5px solid var(--ball);border-radius:999px;padding:8px 18px;font:600 13px 'Barlow';display:none;z-index:60;max-width:90vw;text-align:center}
+#overlay{position:fixed;inset:0;background:rgba(5,20,15,.88);display:none;z-index:50;padding:18px;overflow:auto}
+#overlay.open{display:block}
+#obox{max-width:900px;margin:0 auto;background:var(--court-2);border:1.5px solid #23594a;border-radius:10px;padding:14px}
+#obox h3{margin:0 0 6px;font-family:'Barlow Condensed';text-transform:uppercase;font-size:18px}
+#obox .note{font-size:12.5px;color:#bccfc4;margin-bottom:10px}
+#obox textarea{width:100%;height:260px;background:#0b3226;color:#e9efe9;border:1.5px solid #23594a;
+  border-radius:8px;font:500 11px 'IBM Plex Mono';padding:8px}
+#odoc{background:#fff;color:#111;border-radius:8px;padding:14px;max-height:420px;overflow:auto;font-size:12px}
+#odoc table{border-collapse:collapse;margin:8px 0 14px;font-size:11px}
+#odoc th,#odoc td{border:1px solid #bbb;padding:3px 7px;text-align:left}
+#odoc th{background:#0e3b2e;color:#fff}
+#odoc h2{font-size:13px;margin:10px 0 2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v2.2 · Aug 10 2026 · export fallbacks</span></h1>
+  <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
+  deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
+  return to the free-agent pool. Lower PTI = better.</div>
+  <div class="controls">
+    <button class="pill" onclick="toggleChart()">Charts</button>
+    <button class="pill" onclick="addTeam()">+ Add team</button>
+    <button class="pill" onclick="saveVersion()">Save version</button>
+    <button class="pill" onclick="toggleVersions()">Versions</button>
+    <button class="pill" onclick="exportCSV()">Excel (CSV)</button>
+    <button class="pill" onclick="exportPDF()">PDF</button>
+    <button class="pill" onclick="resetAll()">Reset</button>
+    <input type="file" id="importfile" accept=".json" style="display:none" onchange="importVersion(event)">
+    <span class="movehint" id="hint"></span>
+  </div>
+</header>
+<div id="verwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
+  <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Saved versions</div>
+  <div id="verlist" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
+  <div style="margin-top:10px"><button class="pill" onclick="document.getElementById('importfile').click()">Import from file</button></div>
+</div>
+<div id="chartwrap">
+<div class="ct">Team scatter chart — dot = player, bar = median (lower = better)</div>
+<svg id="chart" width="100%" height="270"></svg>
+<div class="ct" style="margin-top:10px">Distribution chart — top-4/6/8/10 averages per team (higher on chart = better)</div>
+<svg id="chart2" width="100%" height="300"></svg>
+</div>
+<div id="board"></div>
+<div id="toast"></div>
+<div id="overlay"><div id="obox">
+  <h3 id="otitle"></h3><div class="note" id="onote"></div>
+  <div id="obody"></div>
+  <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="pill" id="oselect" style="display:none">Select all</button>
+    <button class="pill" onclick="document.getElementById('overlay').classList.remove('open')">Close</button>
+  </div></div></div>
+<div id="poolwrap"></div>
+<footer>Current PTIs (Aug 2026). Baseline: Kritzler on Michigan Shores; Knollwood promoted (* = S2 record);
+Glen Ellyn, Glen View, Hinsdale dropped (top-200 players in pool); hypothetical Winnetka incl. Merckx and a 20.0 placeholder; Sunset Ridge = their real S2 roster and record (Merckx excluded there since he starts on Winnetka — drag him over to restore).</footer>
+<script>
+const RAW = [{"team": "Michigan Shores", "rec": "4-11", "players": [["Graham McNerney", -12.8, ""], ["Danny Oakes", 1.1, ""], ["Mick Parks", 3.3, ""], ["Josh Kritzler", 3.7, ""], ["Sasha Djordjevic", 5.4, ""], ["Eddie Trapp", 6.4, ""], ["Matt Harris", 13.2, ""], ["Andy Goodrich", 18.6, ""], ["Erik Billings", 19.5, ""], ["John Watrous", 20.4, ""]]}, {"team": "Lifesport-Lshire", "rec": "10-3", "players": [["Jeronie Barnes", -5.3, ""], ["Alex Lambropoulos", -3.7, ""], ["Alex Cotard", 5.8, ""], ["Josh Graves", 6.2, ""], ["Drake Weyermuller", 7.9, ""], ["Jay Woldenberg", 8.0, ""], ["Tom Rowland", 9.0, ""], ["Trey Scott", 9.6, ""], ["Mike Sims", 10.2, ""], ["Bryan Fox", 11.8, ""], ["Michael Franco", 11.9, ""], ["Josh Wittenberg", 15.6, ""], ["Bryan Bertola", 17.1, ""], ["Jacob Mayles", 18.5, ""]]}, {"team": "Wilmette PD", "rec": "12-2", "players": [["Greg Wotring", -1.8, ""], ["Mackey Pierce", 5.5, ""], ["Daniel Levine", 5.6, ""], ["Steve Baby", 7.9, ""], ["Dan Rosenberg", 8.0, ""], ["John Silk", 8.5, ""], ["James Franke", 9.1, ""], ["Wally Pfenning", 9.8, ""], ["Tom Morton", 11.0, ""], ["Ben Kimmel", 11.1, ""]]}, {"team": "Winnetka (hyp.)", "rec": "hyp.", "players": [["Jonas Merckx", -14.0, ""], ["Vukasin Teofanovic", -5.5, ""], ["Gabe Korach", 6.1, ""], ["Brandon Fisher", 7.4, ""], ["Tommy Sullivan", 11.8, ""], ["Connor Casas", 13.5, ""], ["Stephen Larko", 14.5, ""], ["Placeholder", 20.0, ""], ["Addom Powell", 20.1, ""], ["Dane Olsen", 20.7, ""]]}, {"team": "Lakeshore S&F", "rec": "5-12", "players": [["Adam Schumacher", 0.5, ""], ["Charlie Howard", 3.0, ""], ["Jeff Rightnour", 6.3, ""], ["Scott Hill", 8.7, ""], ["David Zak", 9.3, ""], ["Peter Stellas Jr", 10.3, ""], ["Connor Parks", 10.8, ""], ["Henry Crowe", 15.6, ""], ["Peter DeHaan", 21.8, ""]]}, {"team": "Knollwood", "rec": "12-5*", "players": [["Bradford Smith", 4.1, ""], ["Scott Green", 5.6, ""], ["Jason Love", 5.8, ""], ["John Noble", 6.8, ""], ["Teddy Boucquemont", 9.6, ""], ["Chris Baker", 10.6, ""], ["Trey Minter", 10.7, ""], ["Eric Koppmann", 11.6, ""], ["PJ Carollo", 13.8, ""], ["JD Mynhier", 18.4, ""], ["Mike Chabraja", 18.5, ""], ["Paul Carollo", 28.1, ""]]}, {"team": "Glenbrook (new)", "rec": "\u2014", "players": []}, {"team": "Sunset Ridge", "rec": "14-3*", "players": [["Brian Panek", 0.3, ""], ["Peter Berka", 3.9, ""], ["Ben Ashford", 8.2, ""], ["Scott Mansager", 8.6, ""], ["Kian Dowlatshahi", 14.9, ""], ["Darryl Silverman", 15.6, ""], ["Doug Clingan", 19.1, ""], ["Luke Figora", 19.2, ""], ["Ryan Farrell", 21.3, ""], ["Kevin Weasler", 21.8, ""]]}, {"team": "Free agents \u2014 top 200", "rec": "pool", "players": [["Adam Morgan", -11.4, "S2"], ["Dane Schmidgall", -8.7, "S3"], ["Andrew Ong", -5.6, "S1"], ["Robert Stineman", -5.6, "S3"], ["Peter Rose", -3.4, "S1"], ["Paul Rose", -2.2, "S1"], ["Ben McKnight", -1.4, "S1"], ["Will Colmar", 1.1, "S4"], ["Anthony McPherson", 1.5, "S1"], ["Ryan Edlefsen", 1.7, "S1"], ["Harry Sullivan", 2.1, "S1"], ["Ryan Mullaney III", 2.1, "S1"], ["Eric Pohl", 2.6, "S1"], ["Ben Williams", 2.7, "S1"], ["David Bukowski", 3.1, "S1"], ["Brett Binkley", 3.2, "S2"], ["Scott Rutherford", 3.3, "S1"], ["Stu Bradley", 3.4, "S1"], ["Drew Campbell", 4.0, "S4"], ["Christian Duchnak", 4.0, "S1"], ["Mark Johnson", 5.9, "S3"], ["Paget Neave", 6.3, "S3"], ["Robb Rickett", 6.7, "\u2014"], ["Ethan Bershtein", 7.1, "S2"], ["Anthony Appleyard", 7.4, "S1"], ["Jeremy Edelson", 7.6, "S3"], ["Mike Rahaley", 7.9, "S6"], ["Tom Moore", 8.0, "S1"], ["Andrew Lockhart", 8.0, "S3"], ["Matthew Warner", 8.2, "S4"], ["Harold Martin", 8.6, "S3"], ["Dave Fritzsche", 8.7, "S1"], ["Connor Roth", 8.9, "S3"], ["Keegan DeSilva", 9.0, "S3"], ["Todd Schaefer", 9.0, "S2"], ["Charles Leger", 9.1, "S2"], ["Vineeth Gossain", 9.4, "S2"], ["Cameron Slabbert", 9.6, "S1"], ["Mark Schaefer", 9.7, "S1"], ["Reece Acree", 9.9, "S2"], ["James Goldman", 10.0, "S2"], ["Andrew Buchholz", 10.2, "S1"], ["Eddie DeLaCruz", 10.2, "S1"], ["Tom Concklin", 10.4, "S1"], ["Peter Hammond", 10.4, "S2"], ["Daniel Larkin", 10.5, "S6"], ["Paul Garvin", 10.5, "S2"], ["Arun Jagasia", 10.7, "S2"], ["Scott Bondurant", 10.7, "S4"], ["Andrew Tomson", 10.9, "S1"], ["Audrius Verbickas", 11.0, "S1"], ["Rich Karban", 11.5, "S3"], ["Colin Zimmerman", 11.7, "S3"], ["Reed Schaefer", 12.0, "S1"], ["Jacob Groce", 12.0, "S3"], ["Timothy Kessler", 12.0, "S1"], ["Gabe Schlussel", 12.5, "S3"], ["Dan Adajian", 12.5, "S3"], ["Vince Lombardi", 12.5, "S2"], ["Blake Bazarnik", 12.6, "S4"], ["Ryan Keefe", 13.2, "S2"], ["Jeff Martin", 13.5, "S4"], ["Brett Morse Karzen", 13.5, "S1"], ["Mark Cunnington", 13.6, "S1"], ["George Sullivan", 13.7, "S4"], ["Luke Marker", 13.7, "S2"], ["Billy Friedman", 13.7, "S6"], ["Peter Slaven", 14.1, "S3"], ["Blake Kasday", 14.3, "S7"], ["Trever Koek", 14.5, "S2"], ["Jon Newlin", 14.6, "S1"], ["Michael Jacobs", 14.6, "S3"], ["Daniel McGuire", 14.6, "\u2014"], ["Jeremy Shull", 14.6, "S1"], ["Bryant McWhorter", 14.7, "S2"], ["Brian Saltzman", 14.7, "S2"], ["Fabio Perasso", 14.8, "S12"], ["Rob Goeckel", 14.9, "S1"], ["Karl Morgan", 15.0, "S4"], ["Derek Fish", 15.0, "S3"], ["Phil Cameron", 15.2, "S7 SW"], ["Peter Roeser", 15.2, "S4"], ["Jim Kozak", 15.5, "S4"], ["Aven Harper", 15.5, "S8"], ["Radek Guzik", 15.6, "S1"], ["Rishi Goel", 15.6, "S5"], ["Jamie Daul", 15.7, "S4"], ["Charlie Pfister", 15.7, "S1"], ["Chris Lashmet", 15.7, "S1"], ["David J Fox", 15.8, "S2"], ["Dan Daehler", 15.8, "S3"], ["Matt Ward", 16.0, "S3"], ["Ryan Jump", 16.0, "S4"], ["Scott Gottman", 16.1, "S3"], ["Mike Wilkins", 16.2, "S2"], ["Josh Hinterlong", 16.4, "S4"], ["Ben Woldenberg", 16.4, "S3"], ["Chad Bruso", 16.5, "S5"], ["John Noell", 16.5, "S2"], ["Chad Eisenberg", 16.5, "S3"], ["Ben Van Dixhorn", 16.5, "S4"], ["Carl Bartholomay", 16.6, "S2"], ["Collin Jones", 16.6, "S6"], ["Greg Snow", 16.6, "S3"], ["Mason Phelps", 16.6, "S2"], ["Tom McNeela", 16.7, "S2"], ["Douglas Freedman", 16.7, "S3"], ["Brandon Dechter", 16.7, "S3"], ["Alec Manning", 16.8, "S4"], ["Tom Davis", 16.9, "S5"], ["Keegan O'Brien", 16.9, "S3"], ["Ben Hirsh", 17.0, "S5"], ["Adam Herakovich", 17.0, "S4"], ["Charlie Phillips", 17.0, "S3"], ["Brent Damico", 17.0, "S3"], ["Vince McPherson", 17.2, "S7 SW"], ["Christopher Williams", 17.3, "S1"], ["Sam Meyer", 17.3, "S1"], ["Jon Lothan", 17.4, "S4"], ["Dave Garden", 17.5, "S6"], ["Zane Fulton", 17.5, "S3"], ["Aaron Mabra", 17.5, "S3"], ["Rob Fenton", 17.6, "S2"], ["Jon Less", 17.6, "S5"], ["Andrew Heinlein", 17.6, "S5"], ["Ryan Botjer", 17.6, "S2"], ["Jack Bryant", 17.7, "S3"], ["Rob Neuman", 17.7, "S4"], ["David Parker", 17.7, "S5"], ["Reid Snyder", 17.8, "S2"], ["Colin Arnold", 17.8, "S5"], ["David Luger", 17.9, "S2"], ["Rob Young", 17.9, "S2"], ["Sanjiv Pillai", 17.9, "S3"], ["JP Gallagher", 17.9, "S1"], ["Brian Leydon", 18.0, "S4"], ["Michael Phillips", 18.2, "S4"], ["Gui Axus", 18.2, "S4"], ["Josh Leighton", 18.4, "S3"]], "pool": true}, {"team": "Sidelines \u2014 likely not playing", "rec": "parked", "players": [], "side": true}];
+RAW.forEach((t,i)=>t.id=i);
+const BASE = {}; RAW.forEach(t=>{ if(!t.pool) BASE[t.id]=t.players.map(p=>p[1]); });
+const HOME = {}; RAW.forEach(t=>t.players.forEach(p=>{ if(!(p[0] in HOME)) HOME[p[0]]=t.id; }));
+let state, selected=null, nextId=RAW.length, chartOpen=false, editingTeam=null, pendingDelete=null;
+function deepcopy(x){return JSON.parse(JSON.stringify(x));}
+function topN(ptis,n){const s=[...ptis].sort((a,b)=>a-b); const k=Math.min(n,s.length);
+  return s.slice(0,k).reduce((a,b)=>a+b,0)/k;}
+function fmt(x){return (Math.round(x*10)/10).toFixed(1);}
+function chipEl(p, ti, inPool){
+  const t = state[ti];
+  const chip=document.createElement('div'); chip.className='pchip'; chip.draggable=true;
+  if(!t.pool && HOME[p[0]]!==t.id) chip.classList.add('moved');
+  if(selected && selected.name===p[0] && selected.ti===ti) chip.classList.add('selected');
+  const tag=(inPool && p[2])? `<span class="tag">${p[2]}</span>`:'';
+  chip.innerHTML=`<span>${p[0]}</span>${tag}<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
+  chip.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',JSON.stringify({ti,name:p[0]}));
+    chip.classList.add('dragging');});
+  chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
+  chip.addEventListener('click',()=>{
+    if(selected && selected.name===p[0] && selected.ti===ti){selected=null;}
+    else{selected={ti,name:p[0]};}
+    updateHint(); render();});
+  return chip;
+}
+let poolMin=null, poolMax=null;
+function cardEl(t,ti){
+  const poolish = t.pool || t.side;
+  const card=document.createElement('div'); card.className='card'+(poolish?' pool':'');
+  if(selected && selected.ti!==ti) card.classList.add('movable');
+  const nameHtml = (editingTeam===ti && !poolish)?
+    `<input class="tnamein" value="${t.team.replace(/"/g,'&quot;')}" style="font-family:'Barlow Condensed';font-size:18px;text-transform:uppercase;background:#0b3226;color:var(--line);border:1.5px solid var(--ball);border-radius:6px;padding:2px 8px;max-width:180px">`
+    : `<span class="tname">${t.team}</span>`;
+  let inner=`<div class="thead">${nameHtml}
+    <span class="trec">${t.rec}</span><span class="hbtns"></span><span class="count">${t.players.length}p</span></div>`;
+  if(!poolish){
+    const ptis=t.players.map(p=>p[1]); let stats='';
+    [4,6,8,10].forEach(n=>{
+      const has=ptis.length>0; const v=has? topN(ptis,n):NaN;
+      const b=(t.id in BASE && BASE[t.id].length)? topN(BASE[t.id],n):NaN;
+      let dhtml='&nbsp;', cls='';
+      if(has && !isNaN(b)){const d=v-b;
+        if(Math.abs(d)>=0.05){cls=d<0?'better':'worse'; dhtml=(d<0?'▼':'▲')+fmt(Math.abs(d));}}
+      stats+=`<div class="stat"><div class="lbl">Top ${n}</div>
+        <div class="val">${has? fmt(v):'—'}</div><div class="delta ${cls}">${dhtml}</div></div>`;});
+    inner+=`<div class="stats">${stats}</div>`;
+  }
+  if(t.pool){
+    inner+=`<div class="poolfilter" style="display:flex;gap:8px;align-items:center;padding:8px 10px 0;font-size:12px;color:#8fae9f;flex-wrap:wrap">
+      PTI between
+      <input id="pmin" type="number" step="0.1" value="${poolMin??''}" placeholder="min" style="width:70px;background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:4px 7px;font:500 12px 'IBM Plex Mono'">
+      and
+      <input id="pmax" type="number" step="0.1" value="${poolMax??''}" placeholder="max" style="width:70px;background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:4px 7px;font:500 12px 'IBM Plex Mono'">
+      <button class="pill" style="padding:3px 10px;font-size:11.5px" id="pclear">Clear</button>
+      <span id="pcount"></span></div>`;
+  }
+  inner+=`<div class="plist"></div>`;
+  card.innerHTML=inner;
+  const list=card.querySelector('.plist');
+  let shown=[...t.players].sort((a,b)=>a[1]-b[1]);
+  if(t.pool){
+    const total=shown.length;
+    if(poolMin!==null) shown=shown.filter(p=>p[1]>=poolMin);
+    if(poolMax!==null) shown=shown.filter(p=>p[1]<=poolMax);
+    const pc=card.querySelector('#pcount'); if(pc) pc.textContent=`showing ${shown.length} of ${total}`;
+    const apply=()=>{const a=card.querySelector('#pmin').value, b=card.querySelector('#pmax').value;
+      poolMin=a===''?null:parseFloat(a); poolMax=b===''?null:parseFloat(b); render();};
+    ['#pmin','#pmax'].forEach(q=>{const el=card.querySelector(q);
+      el.addEventListener('change',apply);
+      el.addEventListener('keydown',e=>{if(e.key==='Enter')apply(); e.stopPropagation();});
+      el.addEventListener('click',e=>e.stopPropagation());});
+    card.querySelector('#pclear').addEventListener('click',e=>{e.stopPropagation(); poolMin=poolMax=null; render();});
+  }
+  shown.forEach(p=>list.appendChild(chipEl(p,ti,poolish)));
+  card.addEventListener('dragover',e=>{e.preventDefault(); card.classList.add('droptarget');});
+  card.addEventListener('dragleave',()=>card.classList.remove('droptarget'));
+  card.addEventListener('drop',e=>{e.preventDefault(); card.classList.remove('droptarget');
+    const d=JSON.parse(e.dataTransfer.getData('text/plain')); movePlayer(d.ti,d.name,ti);});
+  card.querySelector('.thead').addEventListener('click',(e)=>{
+    if(e.target.closest('.iconbtn')||e.target.classList.contains('tnamein')) return;
+    if(selected && selected.ti!==ti){movePlayer(selected.ti,selected.name,ti); selected=null; updateHint();}});
+  if(!poolish){
+    const hb=card.querySelector('.hbtns');
+    const bE=document.createElement('button'); bE.className='iconbtn'; bE.title='Rename'; bE.textContent='✎';
+    bE.addEventListener('click',e=>{e.stopPropagation(); editingTeam=ti; pendingDelete=null; render();});
+    const bD=document.createElement('button'); bD.className='iconbtn'; bD.title='Delete team';
+    if(pendingDelete===ti){ bD.textContent='confirm ✕'; bD.style.color='#e07b39'; bD.style.fontWeight='700'; }
+    else bD.textContent='✕';
+    bD.addEventListener('click',e=>{e.stopPropagation();
+      if(pendingDelete===ti){ pendingDelete=null; deleteTeam(ti); }
+      else { pendingDelete=ti; render(); setTimeout(()=>{ if(pendingDelete===ti){pendingDelete=null; render();} }, 3000); }});
+    hb.appendChild(bE); hb.appendChild(bD);
+    const inp=card.querySelector('.tnamein');
+    if(inp){
+      setTimeout(()=>{inp.focus(); inp.select();},0);
+      const commit=()=>{ const v=inp.value.trim(); if(v) state[ti].team=v; editingTeam=null; render(); };
+      inp.addEventListener('keydown',e=>{ if(e.key==='Enter') commit(); if(e.key==='Escape'){editingTeam=null; render();} });
+      inp.addEventListener('blur',commit);
+      inp.addEventListener('click',e=>e.stopPropagation());
+    }
+  }
+  return card;
+}
+function drawChart(){
+  if(!chartOpen) return;
+  const svg=document.getElementById('chart');
+  const teams=state.filter(t=>!t.pool&&!t.side);
+  const W=svg.clientWidth||1000, H=270, padL=34, padB=58, padT=8;
+  const all=teams.flatMap(t=>t.players.map(p=>p[1]));
+  const ymin=Math.min(-16, ...(all.length?[Math.min(...all)-1]:[-16]));
+  const ymax=Math.max(24, ...(all.length?[Math.max(...all)+1]:[24]));
+  const y=v=>padT+(H-padB-padT)*(ymax-v)/(ymax-ymin);
+  const n=teams.length, step=(W-padL)/Math.max(n,1);
+  let s='';
+  for(let g=Math.ceil(ymin/10)*10; g<=ymax; g+=10){
+    s+=`<line x1="${padL}" x2="${W}" y1="${y(g)}" y2="${y(g)}" stroke="#1c4d3e"/>
+        <text x="${padL-6}" y="${y(g)+4}" fill="#8fae9f" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${g}</text>`;}
+  teams.forEach((t,i)=>{
+    const cx=padL+step*(i+0.5);
+    const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+    if(vals.length){
+      const med=vals[Math.floor(vals.length/2)];
+      s+=`<line x1="${cx-16}" x2="${cx+16}" y1="${y(med)}" y2="${y(med)}" stroke="#e9efe9" stroke-width="2.5"/>`;
+      vals.forEach((v,k)=>{ const jx=cx+((k%5)-2)*4.5;
+        s+=`<circle cx="${jx}" cy="${y(v)}" r="4" fill="#d9e64a" fill-opacity=".85" stroke="#0e3b2e"/>`;});
+    }
+    const nm=t.team.length>15? t.team.slice(0,14)+'…':t.team;
+    s+=`<text x="${cx}" y="${H-40}" fill="#e9efe9" font-size="11" text-anchor="middle"
+        font-family="Barlow Condensed" transform="rotate(28 ${cx} ${H-40})">${nm}</text>`;});
+  svg.innerHTML=s;
+  drawChart2();
+}
+function drawChart2(){
+  const svg=document.getElementById('chart2');
+  const teams=state.filter(t=>!t.pool&&!t.side && t.players.length);
+  const W=svg.clientWidth||1000, H=300, padL=34, padR=150, padT=10, padB=26;
+  const PAL=['#d9e64a','#5aa7ff','#ff7d9c','#2a9d5c','#e07b39','#c9a7ff','#7fd4c1','#f2d06b','#ff9e6e','#9ecae1'];
+  const cuts=[4,6,8,10];
+  const series=teams.map(t=>{
+    const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+    return cuts.map(n=>{const k=Math.min(n,vals.length);
+      return vals.slice(0,k).reduce((a,b)=>a+b,0)/k;});
+  });
+  const all=series.flat();
+  const ymin=Math.min(...all)-1, ymax=Math.max(...all)+1;
+  const y=v=>padT+(H-padT-padB)*(v-ymin)/(ymax-ymin); // inverted: lower PTI (better) plots higher
+  const x=i=>padL+(W-padL-padR)*i/(cuts.length-1);
+  let s='';
+  for(let g=Math.ceil(ymin/2)*2; g<=ymax; g+=2){
+    s+=`<line x1="${padL}" x2="${W-padR}" y1="${y(g)}" y2="${y(g)}" stroke="#1c4d3e"/>
+        <text x="${padL-6}" y="${y(g)+4}" fill="#8fae9f" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${g}</text>`;}
+  cuts.forEach((n,i)=>{ s+=`<text x="${x(i)}" y="${H-8}" fill="#8fae9f" font-size="11" text-anchor="middle" font-family="Barlow">Top ${n}</text>`;});
+  const labels=[];
+  teams.forEach((t,ti)=>{
+    const c=PAL[ti%PAL.length];
+    const pts=series[ti].map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+    s+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.2"/>`;
+    series[ti].forEach((v,i)=>{ s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4.2" fill="${c}" stroke="#0e3b2e"/>`;});
+    const nm=t.team.length>17? t.team.slice(0,16)+'…':t.team;
+    labels.push({nm,c,yy:y(series[ti][cuts.length-1])+4});
+  });
+  labels.sort((a,b)=>a.yy-b.yy);
+  for(let i=1;i<labels.length;i++){ if(labels[i].yy-labels[i-1].yy<13) labels[i].yy=labels[i-1].yy+13; }
+  labels.forEach(l=>{ s+=`<text x="${W-padR+8}" y="${l.yy}" fill="${l.c}" font-size="11.5" font-family="Barlow Condensed">${l.nm}</text>`; });
+  svg.innerHTML=s;
+}
+function render(){
+  const board=document.getElementById('board'); board.innerHTML='';
+  const poolwrap=document.getElementById('poolwrap'); poolwrap.innerHTML='';
+  state.forEach((t,ti)=>{((t.pool||t.side)? poolwrap: board).appendChild(cardEl(t,ti));});
+  drawChart();
+}
+function movePlayer(from,name,to){
+  if(from===to) return;
+  const i=state[from].players.findIndex(p=>p[0]===name);
+  if(i<0) return;
+  const [pl]=state[from].players.splice(i,1);
+  state[to].players.push(pl);
+  render();
+}
+function poolIndex(){return state.findIndex(t=>t.pool);}
+function addTeam(){
+  const n=state.filter(t=>!t.pool).length+1;
+  const ti=poolIndex();
+  state.splice(ti,0,{team:'New club',rec:'—',players:[],id:nextId++});
+  selected=null; editingTeam=ti; updateHint(); render();
+}
+function deleteTeam(ti){
+  const pool=state[poolIndex()];
+  pool.players.push(...state[ti].players);
+  state.splice(ti,1);
+  selected=null; editingTeam=null; updateHint(); render();
+}
+function toggleChart(){chartOpen=!chartOpen;
+  document.getElementById('chartwrap').classList.toggle('open',chartOpen); drawChart();}
+function updateHint(){document.getElementById('hint').innerHTML=selected?
+  `<b>${selected.name}</b> selected — tap a team header to move`:'';}
+function resetAll(){state=deepcopy(RAW); selected=null; updateHint(); render();}
+const LSKEY='s1sandbox_versions';
+function loadStore(){ try{return JSON.parse(localStorage.getItem(LSKEY)||'{}');}catch(e){return window.__mem||{};} }
+function saveStore(v){ window.__mem=v; try{localStorage.setItem(LSKEY,JSON.stringify(v));}catch(e){} }
+function saveVersion(){
+  renderVersions(true);
+  const inp=document.getElementById('vername');
+  if(inp){ inp.value='Version '+new Date().toLocaleString(); inp.focus(); inp.select(); }
+}
+function saveVersionNamed(){
+  const inp=document.getElementById('vername');
+  const nm=(inp && inp.value.trim())||('Version '+new Date().toLocaleString());
+  const store=loadStore();
+  store[nm]={saved:new Date().toISOString(), state:deepcopy(state), nextId};
+  saveStore(store); renderVersions(true);
+}
+function toggleVersions(){
+  const w=document.getElementById('verwrap');
+  const show=w.style.display==='none';
+  w.style.display=show?'block':'none';
+  if(show) renderVersions();
+}
+function renderVersions(forceOpen){
+  if(forceOpen) document.getElementById('verwrap').style.display='block';
+  const list=document.getElementById('verlist'); const store=loadStore();
+  const names=Object.keys(store).sort((a,b)=>store[b].saved.localeCompare(store[a].saved));
+  list.innerHTML=`<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+    <input id="vername" placeholder="Version name" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 13px 'Barlow';min-width:200px">
+    <button class="pill" style="padding:4px 12px;font-size:12px" onclick="saveVersionNamed()">Save current board</button>
+    <button class="pill" style="padding:4px 12px;font-size:12px" onclick="copyShareCode()">Copy share code</button>
+    <span id="vermsg" style="color:#d9e64a;font-size:12px"></span></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px">
+    <input id="pastecode" placeholder="Paste a share code from someone else" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 12px 'IBM Plex Mono';flex:1;min-width:220px">
+    <button class="pill" style="padding:4px 12px;font-size:12px" onclick="loadShareCode()">Load code</button></div>
+    <div id="sharedwrap" style="margin-top:8px"></div>`;
+  renderShared();
+  if(!names.length){ list.innerHTML+='<span style="color:#8fae9f">No saved versions yet. Saving snapshots the whole board; Export downloads a file you can re-import anywhere.</span>'; return; }
+  names.forEach(nm=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex; gap:8px; align-items:center; flex-wrap:wrap';
+    const when=new Date(store[nm].saved).toLocaleString();
+    row.innerHTML=`<b style="color:#e9efe9">${nm}</b><span style="color:#8fae9f; font-size:11px">${when}</span>
+      <span style="margin-left:auto"></span>
+      <button class="pill" style="padding:3px 10px; font-size:11.5px" onclick='loadVersion(${JSON.stringify(nm)})'>Load</button>
+      <button class="pill" style="padding:3px 10px; font-size:11.5px" onclick='exportVersion(${JSON.stringify(nm)})'>Export</button>
+      <button class="pill" style="padding:3px 10px; font-size:11.5px; color:#e07b39; border-color:#e07b39" onclick='deleteVersion(this,${JSON.stringify(nm)})'>Delete</button>`;
+    list.appendChild(row);
+  });
+}
+function loadVersion(nm){
+  const store=loadStore(); if(!store[nm]) return;
+  state=deepcopy(store[nm].state); nextId=store[nm].nextId||state.length;
+  selected=null; updateHint(); render();
+}
+function deleteVersion(btn,nm){
+  if(btn.dataset.armed){ const store=loadStore(); delete store[nm]; saveStore(store); renderVersions(); return; }
+  btn.dataset.armed='1'; btn.textContent='confirm delete';
+  setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.armed; btn.textContent='Delete'; } }, 3000);
+}
+function exportVersion(nm){
+  const store=loadStore(); if(!store[nm]) return;
+  const blob=new Blob([JSON.stringify({name:nm, ...store[nm]},null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='s1-roster-'+nm.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importVersion(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+      const d=JSON.parse(rd.result);
+      if(!d.state) throw 0;
+      const store=loadStore();
+      const nm=d.name||('Imported '+new Date().toLocaleString());
+      store[nm]={saved:d.saved||new Date().toISOString(), state:d.state, nextId:d.nextId};
+      saveStore(store); renderVersions(true);
+    }catch(e){ const m=document.getElementById('vermsg'); if(m) m.textContent='That file is not a saved roster version.'; } };
+  rd.readAsText(f); ev.target.value='';
+}
+async function stateToCode(){
+  const json=JSON.stringify({state, nextId});
+  const bytes=new TextEncoder().encode(json);
+  try{
+    const cs=new CompressionStream('deflate-raw');
+    const comp=await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
+    return 'z:'+btoa(String.fromCharCode(...new Uint8Array(comp)));
+  }catch(e){ return 'p:'+btoa(unescape(encodeURIComponent(json))); }
+}
+async function codeToState(code){
+  code=code.trim();
+  if(code.startsWith('z:')){
+    const bin=Uint8Array.from(atob(code.slice(2)), c=>c.charCodeAt(0));
+    const ds=new DecompressionStream('deflate-raw');
+    const raw=await new Response(new Blob([bin]).stream().pipeThrough(ds)).text();
+    return JSON.parse(raw);
+  }
+  if(code.startsWith('p:')) return JSON.parse(decodeURIComponent(escape(atob(code.slice(2)))));
+  throw new Error('bad code');
+}
+function vmsg(t){const m=document.getElementById('vermsg'); if(m){m.textContent=t; setTimeout(()=>{if(m.textContent===t)m.textContent='';},4000);}
+  const tt=document.getElementById('toast'); if(tt){tt.textContent=t; tt.style.display='block';
+  clearTimeout(tt._h); tt._h=setTimeout(()=>tt.style.display='none',4500);} }
+async function copyShareCode(){
+  const code=await stateToCode();
+  try{ await navigator.clipboard.writeText(code); vmsg('Share code copied — paste it to anyone with this tool.'); }
+  catch(e){ const inp=document.getElementById('pastecode'); if(inp){inp.value=code; inp.select();}
+    vmsg('Clipboard blocked — code placed in the box below; copy it manually.'); }
+}
+async function loadShareCode(){
+  const inp=document.getElementById('pastecode'); if(!inp||!inp.value.trim()) return;
+  try{ const d=await codeToState(inp.value);
+    state=d.state; nextId=d.nextId||state.length; selected=null; editingTeam=null; updateHint(); render();
+    vmsg('Scenario loaded from code.'); inp.value='';
+  }catch(e){ vmsg('That code could not be read.'); }
+}
+const CLOUD = typeof window!=='undefined' && window.storage && typeof window.storage.list==='function';
+async function renderShared(){
+  const w=document.getElementById('sharedwrap'); if(!w) return;
+  if(!CLOUD){ w.innerHTML='<span style="color:#8fae9f;font-size:12px">Shared cloud versions are unavailable in this viewer — use share codes above instead.</span>'; return; }
+  let rows='';
+  try{
+    const res=await window.storage.list('sver:', true);
+    for(const k of (res?.keys||[])){
+      const nm=k.slice(5);
+      rows+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <b style="color:#e9efe9">☁ ${nm}</b><span style="margin-left:auto"></span>
+        <button class="pill" style="padding:3px 10px;font-size:11.5px" onclick='loadShared(${JSON.stringify(nm)})'>Load</button>
+        <button class="pill" style="padding:3px 10px;font-size:11.5px;color:#e07b39;border-color:#e07b39" onclick='deleteShared(this,${JSON.stringify(nm)})'>Delete</button></div>`;
+    }
+  }catch(e){}
+  w.innerHTML=`<div class="ct" style="font-size:11px">Shared versions — visible to everyone using this tool</div>
+    ${rows||'<span style="color:#8fae9f;font-size:12px">None yet.</span>'}
+    <div style="margin-top:6px"><button class="pill" style="padding:3px 12px;font-size:11.5px" onclick="saveShared()">Save current board as shared</button></div>`;
+}
+async function saveShared(){
+  if(!CLOUD) return;
+  const inp=document.getElementById('vername');
+  const nm=((inp&&inp.value.trim())||('Shared '+new Date().toLocaleDateString())).replace(/[\s\/'"]+/g,'-');
+  try{ await window.storage.set('sver:'+nm, await stateToCode(), true);
+    vmsg('Saved as shared version — visible to anyone using this tool.'); renderShared();
+  }catch(e){ vmsg('Shared save failed in this viewer.'); }
+}
+async function loadShared(nm){
+  try{ const res=await window.storage.get('sver:'+nm, true);
+    const d=await codeToState(res.value);
+    state=d.state; nextId=d.nextId||state.length; selected=null; editingTeam=null; updateHint(); render();
+    vmsg('Shared version loaded.');
+  }catch(e){ vmsg('Could not load that shared version.'); }
+}
+async function deleteShared(btn,nm){
+  if(!btn.dataset.armed){ btn.dataset.armed='1'; btn.textContent='confirm';
+    setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed; btn.textContent='Delete';}},3000); return; }
+  try{ await window.storage.delete('sver:'+nm, true); renderShared(); }catch(e){}
+}
+function teamStats(t){
+  const v=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+  const tn=n=>{const k=Math.min(n,v.length); return k? (v.slice(0,k).reduce((a,b)=>a+b,0)/k):NaN;};
+  const mean=v.length? v.reduce((a,b)=>a+b,0)/v.length:NaN;
+  const sd=v.length? Math.sqrt(v.reduce((a,b)=>a+(b-mean)*(b-mean),0)/v.length):NaN;
+  return {n:v.length, t4:tn(4), t6:tn(6), t8:tn(8), t10:tn(10), mean, sd};
+}
+function dl(name, mime, content){
+  const blob=new Blob([content],{type:mime});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fnum(x){return isNaN(x)?'':(Math.round(x*100)/100).toFixed(2);}
+function exportCSV(){
+  const esc=s=>/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  let rows=['TEAM SUMMARY','Team,Record,Players,Top 4,Top 6,Top 8,Top 10,Mean,SD'];
+  state.filter(t=>!t.pool&&!t.side).forEach(t=>{const s=teamStats(t);
+    rows.push([esc(t.team),esc(t.rec),s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.mean),fnum(s.sd)].join(','));});
+  rows.push('','ROSTERS','Team,Player,PTI,Last season');
+  state.forEach(t=>{
+    [...t.players].sort((a,b)=>a[1]-b[1]).forEach(p=>{
+      rows.push([esc(t.team),esc(p[0]),p[1].toFixed(1),esc(p[2]||'')].join(','));});});
+  const csv='\ufeff'+rows.join('\n');
+  const tsv=rows.map(r=>{
+    const out=[]; let cur='', q=false;
+    for(const ch of r){ if(ch==='"'){q=!q; cur+='';} else if(ch===','&&!q){out.push(cur); cur='';} else cur+=ch; }
+    out.push(cur); return out.join('\t');
+  }).join('\n');
+  try{ dl('s1-rosters-'+new Date().toISOString().slice(0,10)+'.csv','text/csv;charset=utf-8',csv); }catch(e){}
+  showOverlay('Excel export',
+    'A .csv download was attempted. If no file appeared, this viewer blocks downloads — use the box below instead: tap Select all, copy, and paste straight into Excel or Google Sheets (it pastes into columns). For one-tap downloads, open this tool in a regular browser.',
+    'text', tsv);
+}
+function showOverlay(title, note, kind, content){
+  document.getElementById('otitle').textContent=title;
+  document.getElementById('onote').textContent=note;
+  const body=document.getElementById('obody'), sel=document.getElementById('oselect');
+  if(kind==='text'){
+    body.innerHTML='<textarea id="otext" readonly></textarea>';
+    document.getElementById('otext').value=content;
+    sel.style.display='inline-block';
+    sel.onclick=()=>{const ta=document.getElementById('otext'); ta.focus(); ta.select();
+      try{document.execCommand('copy'); vmsg('Copied.');}catch(e){}};
+  } else { body.innerHTML='<div id="odoc">'+content+'</div>'; sel.style.display='none'; }
+  document.getElementById('overlay').classList.add('open');
+}
+let jspdfLoading=null;
+function loadScript(url){return new Promise((res,rej)=>{const s=document.createElement('script');
+  s.src=url; s.onload=res; s.onerror=rej; document.head.appendChild(s);});}
+async function ensureJsPDF(){
+  if(window.jspdf&&window.jspdf.jsPDF) return true;
+  if(!jspdfLoading) jspdfLoading=(async()=>{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  })();
+  try{ await jspdfLoading; return !!(window.jspdf&&window.jspdf.jsPDF); }catch(e){ return false; }
+}
+async function exportPDF(){
+  vmsg('Building PDF…');
+  const ok=await ensureJsPDF();
+  if(!ok){ exportPrintHTML(); return; }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'pt', format:'letter'});
+  const teams=state.filter(t=>!t.pool&&!t.side);
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Series 1 Roster Scenario', 40, 44);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110);
+  doc.text('Exported '+new Date().toLocaleString()+' — lower PTI = better', 40, 58);
+  doc.autoTable({startY:70,
+    head:[['Team','Rec','N','Top 4','Top 6','Top 8','Top 10','Mean','SD']],
+    body:teams.map(t=>{const s=teamStats(t);
+      return [t.team,t.rec,s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.mean),fnum(s.sd)];}),
+    styles:{fontSize:8.5,cellPadding:3}, headStyles:{fillColor:[14,59,46]},
+    alternateRowStyles:{fillColor:[238,243,238]}});
+  let y=doc.lastAutoTable.finalY+16;
+  teams.forEach(t=>{
+    const body=[...t.players].sort((a,b)=>a[1]-b[1]).map((p,i)=>[i+1,p[0],p[1].toFixed(1)]);
+    if(y>640){doc.addPage(); y=44;}
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20);
+    doc.text(t.team+'  ('+t.rec+')', 40, y);
+    doc.autoTable({startY:y+6, head:[['#','Player','PTI']], body,
+      styles:{fontSize:8.5,cellPadding:2.5}, headStyles:{fillColor:[14,59,46]},
+      alternateRowStyles:{fillColor:[238,243,238]}, tableWidth:250, margin:{left:40}});
+    y=doc.lastAutoTable.finalY+18;
+  });
+  let saved=true;
+  try{ doc.save('s1-rosters-'+new Date().toISOString().slice(0,10)+'.pdf'); }catch(e){ saved=false; }
+  vmsg(saved? 'PDF download attempted — if nothing appeared, see the preview overlay.' : 'Download blocked — showing preview instead.');
+  showOverlay('PDF export', 'A .pdf download was attempted. If no file appeared, this viewer blocks downloads — the document is previewed below (screenshot it, or open this tool in a regular browser for a true PDF download).', 'doc', buildDocHTML());
+}
+function buildDocHTML(){
+  const teams=state.filter(t=>!t.pool&&!t.side);
+  let h=`<b style="font-size:15px">Series 1 Roster Scenario</b><div style="color:#666;font-size:10px">Exported ${new Date().toLocaleString()} — lower PTI = better</div>
+  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Mean</th><th>SD</th></tr>`;
+  teams.forEach(t=>{const s=teamStats(t);
+    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
+  h+='</table>';
+  teams.forEach(t=>{
+    h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
+    [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i)=>{h+=`<tr><td>${i+1}</td><td>${p[0]}</td><td>${p[1].toFixed(1)}</td></tr>`;});
+    h+='</table>';});
+  return h;
+}
+function exportPrintHTML(){
+  const teams=state.filter(t=>!t.pool&&!t.side);
+  let h=`<html><head><meta charset="utf-8"><title>Series 1 Roster Scenario</title>
+  <style>body{font-family:Helvetica,Arial,sans-serif;margin:36px;color:#111}
+  h1{font-size:20px} .sub{color:#666;font-size:11px}
+  table{border-collapse:collapse;margin:10px 0 18px;font-size:11px}
+  th,td{border:1px solid #bbb;padding:4px 8px;text-align:left}
+  th{background:#0e3b2e;color:#fff} tr:nth-child(even) td{background:#eef3ee}
+  h2{font-size:13px;margin:16px 0 2px} @media print{h2{page-break-after:avoid}}</style></head><body>
+  <h1>Series 1 Roster Scenario</h1><div class="sub">Exported ${new Date().toLocaleString()} — lower PTI = better.
+  Open this file in a browser and print / save as PDF.</div>
+  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Mean</th><th>SD</th></tr>`;
+  teams.forEach(t=>{const s=teamStats(t);
+    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
+  h+='</table>';
+  teams.forEach(t=>{
+    h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
+    [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i)=>{h+=`<tr><td>${i+1}</td><td>${p[0]}</td><td>${p[1].toFixed(1)}</td></tr>`;});
+    h+='</table>';});
+  h+='</body></html>';
+  try{ dl('s1-rosters-print.html','text/html',h); }catch(e){}
+  showOverlay('PDF export', 'The PDF library could not load in this viewer. The document is previewed below (screenshot it), and a print-ready HTML download was attempted — open this tool in a regular browser for full export support.', 'doc', buildDocHTML());
+}
+window.addEventListener('resize',()=>{drawChart();});
+resetAll();
+</script>
+</body>
+</html>
