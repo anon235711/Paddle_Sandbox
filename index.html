@@ -84,7 +84,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v2.6 · Aug 11 2026 · 3-yr connections, filters + sort</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v2.7 · Aug 11 2026 · load more + connectivity toggle</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -708,9 +708,11 @@ function multiCancel(){
 }
 let sug=null;
 function suggestFor(ti){
-  sug={ti, sort:'conn', maxPti:'', avail:{pool:true, side:false, teams:true}, s1only:false};
+  sug={ti, sort:'conn', maxPti:'', avail:{pool:true, side:false, teams:true}, s1only:false, minconn:true, limit:20};
   renderSuggest();
 }
+function sugMore(){ if(sug){sug.limit+=20; renderSuggest();} }
+function sugMin(on){ if(sug){sug.minconn=on; if(!on && sug.sort==='conn') sug.sort='pti'; renderSuggest();} }
 function sugSort(s){ if(sug){sug.sort=s; renderSuggest();} }
 function sugMax(v){ if(sug){sug.maxPti=v; renderSuggest();} }
 function sugAvail(k, on){ if(sug){sug.avail[k]=on; renderSuggest();} }
@@ -725,6 +727,12 @@ function renderSuggest(){
     t.players.forEach(p=>loc[p[0].toLowerCase()]={name:p[0], pti:p[1], from:kind,
       fromName:t.pool?'Free agents':(t.side?'Sidelines':t.team)}); });
   const cands={};
+  if(!sug.minconn){
+    for(const other in loc){
+      if(rosterKeys.includes(other)) continue;
+      cands[other]={...loc[other], score:0, plinks:[], tlinks:0, tourn:0};
+    }
+  }
   rosterKeys.forEach((rk,ri)=>{
     const edges=CONN[rk]||{};
     for(const other in edges){
@@ -739,11 +747,13 @@ function renderSuggest(){
     }
   });
   let list=Object.values(cands);
+  if(sug.minconn) list=list.filter(c=>c.score>0);
   if(sug.maxPti!=='' && !isNaN(parseFloat(sug.maxPti))) list=list.filter(c=>c.pti<=parseFloat(sug.maxPti));
   list=list.filter(c=>sug.avail[c.from]);
   if(sug.s1only) list=list.filter(c=>S1EXP.has(c.name.toLowerCase()));
-  list.sort(sug.sort==='pti'? ((a,b)=>a.pti-b.pti) : ((a,b)=>b.score-a.score));
-  list=list.slice(0,20);
+  list.sort(sug.sort==='pti'? ((a,b)=>a.pti-b.pti) : ((a,b)=>b.score-a.score || a.pti-b.pti));
+  const total=list.length;
+  list=list.slice(0,sug.limit);
   const pillS=(on)=>`padding:2px 10px;font-size:11px;border-radius:999px;border:1.5px solid #0e3b2e;cursor:pointer;background:${on?'#0e3b2e':'#fff'};color:${on?'#fff':'#0e3b2e'}`;
   let h=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:11.5px">
     <b>Sort:</b>
@@ -756,6 +766,7 @@ function renderSuggest(){
     <label><input type="checkbox" ${sug.avail.teams?'checked':''} onchange="sugAvail('teams',this.checked)"> Other teams</label>
     <label><input type="checkbox" ${sug.avail.side?'checked':''} onchange="sugAvail('side',this.checked)"> Sidelines</label>
     <label><input type="checkbox" ${sug.s1only?'checked':''} onchange="sugS1(this.checked)"> S1 experience only</label>
+    <label title="When off, all players are listed regardless of connection to this roster"><input type="checkbox" ${sug.minconn?'checked':''} onchange="sugMin(this.checked)"> Connected only</label>
   </div>`;
   if(!list.length) h+='<div style="color:#666">No connected players match these filters.</div>';
   const maxScore=list.length? Math.max(...list.map(c=>c.score)):1;
@@ -775,6 +786,7 @@ function renderSuggest(){
       </div>
       <button class="pill" style="padding:3px 12px;font-size:11.5px" onclick="addSuggested(${ti},'${c.name.replace(/'/g,"\\'")}')">Add</button></div>`;
   });
+  if(total>list.length) h+=`<div style="text-align:center;margin-top:10px"><button class="pill" style="padding:4px 16px;font-size:12px;border-color:#0e3b2e;color:#0e3b2e" onclick="sugMore()">Load ${Math.min(20,total-list.length)} more (${total-list.length} remaining)</button></div>`;
   showOverlay('Suggested players — '+team.team,
     'Connections from the last 3 seasons of league AND tournament play: partnerships weigh 5× per line together, shared team-seasons 1×. Bar = relative connection strength.',
     'doc', h);
