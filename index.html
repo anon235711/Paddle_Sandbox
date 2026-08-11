@@ -86,7 +86,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v3.8 · Aug 11 2026 · league ranks + deltas</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v3.9 · Aug 11 2026 · single wide chart</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -123,9 +123,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
   <div style="margin-top:10px"><button class="pill" onclick="document.getElementById('importfile').click()">Import from file</button></div>
 </div>
 <div id="chartwrap">
-<div class="ct">Team scatter chart — dot = player, bar = median (lower = better)</div>
-<svg id="chart" width="100%" height="270"></svg>
-<div class="ct" style="margin-top:10px">Distribution chart — top-4/6/8/10 averages per team (higher on chart = better)</div>
+<div class="ct">Distribution chart — top-4/6/8/10 averages per team (higher on chart = better)</div>
 <svg id="chart2" width="100%" height="300"></svg>
 </div>
 <div id="board"></div>
@@ -292,37 +290,12 @@ function cardEl(t,ti){
 }
 function drawChart(){
   if(!chartOpen) return;
-  const svg=document.getElementById('chart');
-  const teams=state.filter(t=>!t.pool&&!t.side);
-  const W=svg.clientWidth||1000, H=270, padL=34, padB=58, padT=8;
-  const all=teams.flatMap(t=>t.players.map(p=>p[1]));
-  const ymin=Math.min(-16, ...(all.length?[Math.min(...all)-1]:[-16]));
-  const ymax=Math.max(24, ...(all.length?[Math.max(...all)+1]:[24]));
-  const y=v=>padT+(H-padB-padT)*(ymax-v)/(ymax-ymin);
-  const n=teams.length, step=(W-padL)/Math.max(n,1);
-  let s='';
-  for(let g=Math.ceil(ymin/10)*10; g<=ymax; g+=10){
-    s+=`<line x1="${padL}" x2="${W}" y1="${y(g)}" y2="${y(g)}" stroke="#1c4d3e"/>
-        <text x="${padL-6}" y="${y(g)+4}" fill="#8fae9f" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${g}</text>`;}
-  teams.forEach((t,i)=>{
-    const cx=padL+step*(i+0.5);
-    const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
-    if(vals.length){
-      const med=vals[Math.floor(vals.length/2)];
-      s+=`<line x1="${cx-16}" x2="${cx+16}" y1="${y(med)}" y2="${y(med)}" stroke="#e9efe9" stroke-width="2.5"/>`;
-      vals.forEach((v,k)=>{ const jx=cx+((k%5)-2)*4.5;
-        s+=`<circle cx="${jx}" cy="${y(v)}" r="4" fill="#d9e64a" fill-opacity=".85" stroke="#0e3b2e"/>`;});
-    }
-    const nm=t.team.length>15? t.team.slice(0,14)+'…':t.team;
-    s+=`<text x="${cx}" y="${H-40}" fill="#e9efe9" font-size="11" text-anchor="middle"
-        font-family="Barlow Condensed" transform="rotate(28 ${cx} ${H-40})">${nm}</text>`;});
-  svg.innerHTML=s;
   drawChart2();
 }
 function drawChart2(){
   const svg=document.getElementById('chart2');
   const teams=state.filter(t=>!t.pool&&!t.side && t.players.length);
-  const W=svg.clientWidth||1000, H=300, padL=34, padR=150, padT=10, padB=26;
+  const W=svg.clientWidth||1000, H=300, padL=34, padR=86, padT=10, padB=26;
   const PAL=['#d9e64a','#5aa7ff','#ff7d9c','#2a9d5c','#e07b39','#c9a7ff','#7fd4c1','#f2d06b','#ff9e6e','#9ecae1'];
   const cuts=[4,6,8,10];
   const series=teams.map(t=>{
@@ -350,7 +323,7 @@ function drawChart2(){
   });
   labels.sort((a,b)=>a.yy-b.yy);
   for(let i=1;i<labels.length;i++){ if(labels[i].yy-labels[i-1].yy<13) labels[i].yy=labels[i-1].yy+13; }
-  labels.forEach(l=>{ s+=`<text x="${W-padR+8}" y="${l.yy}" fill="${l.c}" font-size="11.5" font-family="Barlow Condensed">${l.nm}</text>`; });
+  labels.forEach(l=>{ s+=`<text x="${W-2}" y="${l.yy}" fill="${l.c}" font-size="11.5" font-family="Barlow Condensed" text-anchor="end">${l.nm}</text>`; });
   svg.innerHTML=s;
 }
 function render(){
