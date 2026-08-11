@@ -86,7 +86,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.2 · Aug 11 2026 · dialog + chart polish</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.3 · Aug 11 2026 · export panel + strict top-10</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -95,9 +95,8 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
     <button class="pill" onclick="togglePicker()">Teams to Include</button>
     <button class="pill" onclick="toggleChart()">Charts</button>
     <button class="pill" onclick="addTeam()">+ Add team</button>
-    <button class="pill" onclick="toggleVersions()">Import/Share Versions</button>
-    <button class="pill" onclick="exportCSV()">Excel (CSV)</button>
-    <button class="pill" onclick="exportPDF()">PDF</button>
+    <button class="pill" onclick="toggleVersions()">Save/Load</button>
+    <button class="pill" onclick="toggleExport()">Export/Share</button>
     <button class="pill" onclick="resetAll()">Reset to Baseline Scenario</button>
     <input type="file" id="importfile" accept=".json" style="display:none" onchange="importVersion(event)">
     <span class="movehint" id="hint"></span>
@@ -106,6 +105,15 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 <div id="scenwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Published scenarios — same list for everyone on this link</div>
   <div id="scenlist" style="margin-top:8px; font-size:13px; color:#bccfc4">Loading…</div>
+</div>
+<div id="expwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
+  <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Export / share the current board</div>
+  <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+    <button class="pill" onclick="copyShareCode()">Copy share code</button>
+    <button class="pill" onclick="exportCSV()">Excel (CSV)</button>
+    <button class="pill" onclick="exportPDF()">PDF</button>
+  </div>
+  <div style="color:#8fae9f;font-size:11.5px;margin-top:8px">Share codes paste into anyone's Save/Load panel. Excel/PDF download directly (with copy/preview fallbacks in restricted viewers).</div>
 </div>
 <div id="pickwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Starting teams — check to add to the board, uncheck to remove (players go to the pool)</div>
@@ -200,15 +208,15 @@ function cardEl(t,ti){
     const ptis=t.players.map(p=>p[1]); let stats='';
     const league=state.filter(x=>!x.pool&&!x.side&&x.players.length>0);
     [4,6,8,10].forEach(n=>{
-      const has=ptis.length>0; const v=has? topN(ptis,n):NaN;
+      const has=ptis.length>=n; const v=has? topN(ptis,n):NaN;
       const b=(t.id in BASE && BASE[t.id].length)? topN(BASE[t.id],n):NaN;
       let dhtml='&nbsp;', cls='';
       if(has && !isNaN(b)){const d=v-b;
         if(Math.abs(d)>=0.05){cls=d<0?'better':'worse';
           dhtml=(d<0?'▼':'▲')+' = '+fmt(Math.abs(d))+' '+(d<0?'better':'worse');}}
       let rkhtml='&nbsp;', avghtml='&nbsp;';
-      if(has && league.length>1){
-        const all=league.map(x=>topN(x.players.map(p=>p[1]),n)).sort((a,b)=>a-b);
+      if(has && league.filter(x=>x.players.length>=n).length>1){
+        const all=league.filter(x=>x.players.length>=n).map(x=>topN(x.players.map(p=>p[1]),n)).sort((a,b)=>a-b);
         const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
         const frac=(rank-1)/(all.length-1);
         const hue=Math.round(140*(1-frac));
@@ -393,17 +401,15 @@ function renderVersions(forceOpen){
   if(forceOpen) document.getElementById('verwrap').style.display='block';
   const list=document.getElementById('verlist'); const store=loadStore();
   const names=Object.keys(store).sort((a,b)=>store[b].saved.localeCompare(store[a].saved));
-  list.innerHTML=`<div id="pubwrap" style="margin-bottom:10px"></div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+  list.innerHTML=`<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
     <input id="vername" placeholder="Version name" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 13px 'Barlow';min-width:200px">
     <button class="pill" style="padding:4px 12px;font-size:12px" onclick="saveVersionNamed()">Save current board</button>
-    <button class="pill" style="padding:4px 12px;font-size:12px" onclick="copyShareCode()">Copy share code</button>
     <span id="vermsg" style="color:#d9e64a;font-size:12px"></span></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px">
     <input id="pastecode" placeholder="Paste a share code from someone else" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 12px 'IBM Plex Mono';flex:1;min-width:220px">
     <button class="pill" style="padding:4px 12px;font-size:12px" onclick="loadShareCode()">Load code</button></div>
     <div id="sharedwrap" style="margin-top:8px"></div>`;
-  renderPublished(); renderShared();
+  renderShared();
   if(!names.length){ list.innerHTML+='<span style="color:#8fae9f">No saved versions yet. Saving snapshots the whole board; Export downloads a file you can re-import anywhere.</span>'; return; }
   names.forEach(nm=>{
     const row=document.createElement('div');
@@ -474,8 +480,7 @@ function vmsg(t){const m=document.getElementById('vermsg'); if(m){m.textContent=
 async function copyShareCode(){
   const code=await stateToCode();
   try{ await navigator.clipboard.writeText(code); vmsg('Share code copied — paste it to anyone with this tool.'); }
-  catch(e){ const inp=document.getElementById('pastecode'); if(inp){inp.value=code; inp.select();}
-    vmsg('Clipboard blocked — code placed in the box below; copy it manually.'); }
+  catch(e){ showOverlay('Share code','Clipboard is blocked in this viewer — select and copy the code below, then send it to anyone with the tool.','text',code); }
 }
 async function loadShareCode(){
   const inp=document.getElementById('pastecode'); if(!inp||!inp.value.trim()) return;
@@ -525,7 +530,7 @@ async function deleteShared(btn,nm){
 }
 function teamStats(t){
   const v=t.players.map(p=>p[1]).sort((a,b)=>a-b);
-  const tn=n=>{const k=Math.min(n,v.length); return k? (v.slice(0,k).reduce((a,b)=>a+b,0)/k):NaN;};
+  const tn=n=>{ if(v.length<n) return NaN; return v.slice(0,n).reduce((a,b)=>a+b,0)/n; };
   const mean=v.length? v.reduce((a,b)=>a+b,0)/v.length:NaN;
   const sd=v.length? Math.sqrt(v.reduce((a,b)=>a+(b-mean)*(b-mean),0)/v.length):NaN;
   return {n:v.length, t4:tn(4), t6:tn(6), t8:tn(8), t10:tn(10), mean, sd};
@@ -674,6 +679,10 @@ async function renderScenPanel(){
     <span style="margin-left:auto"></span>
     <button class="pill" style="padding:3px 12px;font-size:11.5px" onclick='loadPublished(${JSON.stringify(s.code)})'>Load</button></div>`; });
   el.innerHTML=rows||'None published yet.';
+}
+function toggleExport(){
+  const w=document.getElementById('expwrap');
+  w.style.display = w.style.display==='none' ? 'block' : 'none';
 }
 function togglePicker(){
   const w=document.getElementById('pickwrap');
