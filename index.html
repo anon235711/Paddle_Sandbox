@@ -20,11 +20,13 @@ h1 .ball{color:var(--ball)}
 button.pill{background:transparent; color:var(--ball); border:1.5px solid var(--ball);
   border-radius:999px; padding:6px 16px; font:600 13px 'Barlow'; cursor:pointer}
 button.pill:active{background:var(--ball); color:var(--ink)}
+.pill,.iconbtn{transition:transform .1s ease}
+.pill:active,.iconbtn:active{transform:scale(1.14)}
+.pill.dim{opacity:.32; pointer-events:none}
 .movehint{font-size:12.5px; color:#bccfc4}
 .movehint b{color:var(--ball)}
 #chartwrap{margin-top:12px; background:var(--court-2); border:1.5px solid #23594a;
-  border-radius:10px; padding:10px 12px 4px; display:none}
-#chartwrap.open{display:block}
+  border-radius:10px; padding:10px 12px 4px}
 #chartwrap .ct{font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f}
 #board{margin-top:12px; display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
 #poolwrap{margin-top:12px;}
@@ -86,18 +88,18 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.3 · Aug 11 2026 · export panel + strict top-10</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.4 · Aug 11 2026 · panel exclusivity + layout</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
   <div class="controls">
-    <button class="pill" onclick="openScenarios()">Set-Up Scenarios</button>
-    <button class="pill" onclick="togglePicker()">Teams to Include</button>
-    <button class="pill" onclick="toggleChart()">Charts</button>
-    <button class="pill" onclick="addTeam()">+ Add team</button>
-    <button class="pill" onclick="toggleVersions()">Save/Load</button>
-    <button class="pill" onclick="toggleExport()">Export/Share</button>
-    <button class="pill" onclick="resetAll()">Reset to Baseline Scenario</button>
+    <button class="pill" id="bScen" onclick="togglePanel('bScen')">Set-Up Scenarios</button>
+    <button class="pill" id="bPick" onclick="togglePanel('bPick')">Pre-Populated Teams</button>
+    <button class="pill" id="bAdd" onclick="addTeam()">+ Add team</button>
+    <button class="pill" id="bImp" onclick="togglePanel('bImp')">Import</button>
+    <button class="pill" id="bSaved" onclick="togglePanel('bSaved')">Saved Scenarios</button>
+    <button class="pill" id="bExp" onclick="togglePanel('bExp')">Export/Share</button>
+    <button class="pill" id="bReset" onclick="resetAll()">Reset to Baseline</button>
     <input type="file" id="importfile" accept=".json" style="display:none" onchange="importVersion(event)">
     <span class="movehint" id="hint"></span>
   </div>
@@ -105,6 +107,14 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 <div id="scenwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Published scenarios — same list for everyone on this link</div>
   <div id="scenlist" style="margin-top:8px; font-size:13px; color:#bccfc4">Loading…</div>
+</div>
+<div id="impwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
+  <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Import a scenario</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px">
+    <input id="pastecode" placeholder="Paste a share code" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 12px 'IBM Plex Mono';flex:1;min-width:200px">
+    <button class="pill" onclick="loadShareCode()">Load code</button>
+    <button class="pill" onclick="document.getElementById('importfile').click()">Import from file</button>
+  </div>
 </div>
 <div id="expwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Export / share the current board</div>
@@ -125,9 +135,8 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
   <button class="pill" style="padding:4px 14px; font-size:12px; color:#e07b39; border-color:#e07b39" onclick="multiCancel()">Cancel</button>
 </div>
 <div id="verwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
-  <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Saved versions</div>
+  <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Saved scenarios — stored on this device</div>
   <div id="verlist" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
-  <div style="margin-top:10px"><button class="pill" onclick="document.getElementById('importfile').click()">Import from file</button></div>
 </div>
 <div id="chartwrap">
 <div class="ct">Distribution chart — top-4/6/8/10 averages per team (higher on chart = better)</div>
@@ -162,7 +171,7 @@ function rebaseline(src){
   });
 }
 rebaseline(RAW);
-let state, selected=null, nextId=RAW.length, chartOpen=false, editingTeam=null, pendingDelete=null, multi=null;
+let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null;
 function deepcopy(x){return JSON.parse(JSON.stringify(x));}
 function topN(ptis,n){const s=[...ptis].sort((a,b)=>a-b); const k=Math.min(n,s.length);
   return s.slice(0,k).reduce((a,b)=>a+b,0)/k;}
@@ -306,10 +315,7 @@ function cardEl(t,ti){
   }
   return card;
 }
-function drawChart(){
-  if(!chartOpen) return;
-  drawChart2();
-}
+function drawChart(){ drawChart2(); }
 function drawChart2(){
   const svg=document.getElementById('chart2');
   const teams=state.filter(t=>!t.pool&&!t.side && t.players.length);
@@ -360,10 +366,11 @@ function movePlayer(from,name,to){
 }
 function poolIndex(){return state.findIndex(t=>t.pool);}
 function addTeam(){
-  const n=state.filter(t=>!t.pool).length+1;
   const ti=poolIndex();
   state.splice(ti,0,{team:'New club',rec:'—',players:[],id:nextId++});
   selected=null; editingTeam=ti; updateHint(); render();
+  setTimeout(()=>{const b=document.getElementById('board');
+    if(b && b.lastElementChild) b.lastElementChild.scrollIntoView({behavior:'smooth', block:'center'});}, 60);
 }
 function deleteTeam(ti){
   const pool=state[poolIndex()];
@@ -371,8 +378,7 @@ function deleteTeam(ti){
   state.splice(ti,1);
   selected=null; editingTeam=null; updateHint(); render();
 }
-function toggleChart(){chartOpen=!chartOpen;
-  document.getElementById('chartwrap').classList.toggle('open',chartOpen); drawChart();}
+
 function updateHint(){document.getElementById('hint').innerHTML=selected?
   `<b>${selected.name}</b> selected — tap a team header to move`:'';}
 function resetAll(){state=deepcopy(RAW); rebaseline(RAW); selected=null; updateHint(); render();}
@@ -391,23 +397,15 @@ function saveVersionNamed(){
   store[nm]={saved:new Date().toISOString(), state:deepcopy(state), nextId};
   saveStore(store); renderVersions(true);
 }
-function toggleVersions(){
-  const w=document.getElementById('verwrap');
-  const show=w.style.display==='none';
-  w.style.display=show?'block':'none';
-  if(show) renderVersions();
-}
+
 function renderVersions(forceOpen){
-  if(forceOpen) document.getElementById('verwrap').style.display='block';
+  if(forceOpen && activePanel!=='bSaved') togglePanel('bSaved');
   const list=document.getElementById('verlist'); const store=loadStore();
   const names=Object.keys(store).sort((a,b)=>store[b].saved.localeCompare(store[a].saved));
   list.innerHTML=`<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
     <input id="vername" placeholder="Version name" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 13px 'Barlow';min-width:200px">
     <button class="pill" style="padding:4px 12px;font-size:12px" onclick="saveVersionNamed()">Save current board</button>
     <span id="vermsg" style="color:#d9e64a;font-size:12px"></span></div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px">
-    <input id="pastecode" placeholder="Paste a share code from someone else" style="background:#0b3226;color:var(--line);border:1.5px solid #23594a;border-radius:6px;padding:5px 10px;font:500 12px 'IBM Plex Mono';flex:1;min-width:220px">
-    <button class="pill" style="padding:4px 12px;font-size:12px" onclick="loadShareCode()">Load code</button></div>
     <div id="sharedwrap" style="margin-top:8px"></div>`;
   renderShared();
   if(!names.length){ list.innerHTML+='<span style="color:#8fae9f">No saved versions yet. Saving snapshots the whole board; Export downloads a file you can re-import anywhere.</span>'; return; }
@@ -655,12 +653,7 @@ function exportPrintHTML(){
   try{ dl('s1-rosters-print.html','text/html',h); }catch(e){}
   showOverlay('PDF export', 'The PDF library could not load in this viewer. The document is previewed below (screenshot it), and a print-ready HTML download was attempted — open this tool in a regular browser for full export support.', 'doc', buildDocHTML());
 }
-function openScenarios(){
-  const w=document.getElementById('scenwrap');
-  const show=w.style.display==='none';
-  w.style.display=show?'block':'none';
-  if(show) renderScenPanel();
-}
+
 async function renderScenPanel(){
   const el=document.getElementById('scenlist');
   el.innerHTML='Loading…';
@@ -680,15 +673,20 @@ async function renderScenPanel(){
     <button class="pill" style="padding:3px 12px;font-size:11.5px" onclick='loadPublished(${JSON.stringify(s.code)})'>Load</button></div>`; });
   el.innerHTML=rows||'None published yet.';
 }
-function toggleExport(){
-  const w=document.getElementById('expwrap');
-  w.style.display = w.style.display==='none' ? 'block' : 'none';
-}
-function togglePicker(){
-  const w=document.getElementById('pickwrap');
-  const show=w.style.display==='none';
-  w.style.display=show?'block':'none';
-  if(show) renderPicker();
+const PANELS={bScen:'scenwrap', bPick:'pickwrap', bImp:'impwrap', bSaved:'verwrap', bExp:'expwrap'};
+const PANEL_HOOKS={bScen:()=>renderScenPanel(), bPick:()=>renderPicker(), bSaved:()=>renderVersions()};
+let activePanel=null;
+function togglePanel(btnId){
+  const closing = activePanel===btnId;
+  Object.values(PANELS).forEach(pid=>document.getElementById(pid).style.display='none');
+  activePanel = closing? null : btnId;
+  document.querySelectorAll('.controls .pill').forEach(b=>{
+    b.classList.toggle('dim', activePanel!==null && b.id!==activePanel);
+  });
+  if(!closing){
+    document.getElementById(PANELS[btnId]).style.display='block';
+    if(PANEL_HOOKS[btnId]) PANEL_HOOKS[btnId]();
+  }
 }
 function renderPicker(){
   const list=document.getElementById('picklist'); list.innerHTML='';
