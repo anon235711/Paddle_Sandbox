@@ -84,7 +84,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v2.8 · Aug 11 2026 · league/tournament classification fix</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v2.9 · Aug 11 2026 · auto-build rosters</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -767,6 +767,7 @@ function renderSuggest(){
     <label><input type="checkbox" ${sug.avail.side?'checked':''} onchange="sugAvail('side',this.checked)"> Sidelines</label>
     <label><input type="checkbox" ${sug.s1only?'checked':''} onchange="sugS1(this.checked)"> S1 experience only</label>
     <label title="When off, all players are listed regardless of connection to this roster"><input type="checkbox" ${sug.minconn?'checked':''} onchange="sugMin(this.checked)"> Connected only</label>
+    <button style="${pillS(false)};margin-left:auto;font-weight:700" onclick="autoBuild(${ti})">⚡ Auto-build to 10</button>
   </div>`;
   if(!list.length) h+='<div style="color:#666">No connected players match these filters.</div>';
   const maxScore=list.length? Math.max(...list.map(c=>c.score)):1;
@@ -819,6 +820,89 @@ async function loadPublished(code){
     state=d.state; nextId=d.nextId||state.length; selected=null; editingTeam=null; updateHint(); render();
     vmsg('Published scenario loaded.');
   }catch(e){ vmsg('Could not load that scenario.'); }
+}
+function pairConn(a,b){
+  const e=CONN[a.toLowerCase()]; if(!e) return 0;
+  const v=e[b.toLowerCase()]; if(!v) return 0;
+  return 5*v[0]+v[1];
+}
+function autoBuild(ti){
+  const R=10, ALLOW=1.5;
+  const team=state[ti];
+  const locked=team.players.map(p=>p.slice());
+  if(locked.length>=R){ vmsg('Team already has '+locked.length+' players — remove some first to auto-build.'); return; }
+  const pi=poolIndex();
+  const pool=state[pi].players.map(p=>p.slice());
+  if(!pool.length){ vmsg('No free agents available.'); return; }
+  // benchmark cuts from other real teams on the board
+  const cuts=[4,6,8,10];
+  const others=state.filter((t,tj)=>tj!==ti && !t.pool && !t.side && t.players.length>=8);
+  if(!others.length){ vmsg('Need at least one other 8+ player team on the board as a benchmark.'); return; }
+  const best={};
+  cuts.forEach(N=>{ best[N]=Math.min(...others.map(t=>{
+    const v=t.players.map(p=>p[1]).sort((a,b)=>a-b); const k=Math.min(N,v.length);
+    return v.slice(0,k).reduce((a,b)=>a+b,0)/k; })); });
+  function evalRoster(ros){
+    const v=ros.map(p=>p[1]).sort((a,b)=>a-b);
+    let strength=0, cap=0;
+    cuts.forEach(N=>{ const k=Math.min(N,v.length);
+      const tN=v.slice(0,k).reduce((a,b)=>a+b,0)/k;
+      strength += Math.max(0, tN-best[N]);                       // weaker than best: push toward cap
+      cap += Math.max(0, (best[N]-ALLOW)-tN); });                 // stronger than best by >ALLOW: forbidden zone
+    let conn=0;
+    for(let i=0;i<ros.length;i++) for(let j=i+1;j<ros.length;j++)
+      conn += Math.log1p(pairConn(ros[i][0], ros[j][0]));
+    return 0.25*conn - strength - 40*cap;
+  }
+  // greedy fill
+  let roster=locked.slice();
+  let avail=pool.slice();
+  while(roster.length<R && avail.length){
+    let bi=-1, bs=-Infinity;
+    for(let i=0;i<avail.length;i++){
+      const s=evalRoster(roster.concat([avail[i]]));
+      if(s>bs){bs=s; bi=i;}
+    }
+    roster.push(avail.splice(bi,1)[0]);
+  }
+  // 1-opt swaps on auto-added slots
+  for(let sweep=0;sweep<3;sweep++){
+    let improved=false;
+    for(let i=locked.length;i<roster.length;i++){
+      for(let j=0;j<avail.length;j++){
+        const cur=evalRoster(roster);
+        const test=roster.slice(); const old=test[i]; test[i]=avail[j];
+        if(evalRoster(test)>cur+1e-9){
+          roster[i]=avail[j]; avail[j]=old; improved=true;
+        }
+      }
+    }
+    if(!improved) break;
+  }
+  // commit: move chosen players from pool
+  const added=roster.slice(locked.length);
+  const addedNames=new Set(added.map(p=>p[0]));
+  state[pi].players=state[pi].players.filter(p=>!addedNames.has(p[0]));
+  state[ti].players=roster;
+  render();
+  // summary overlay
+  const v=roster.map(p=>p[1]).sort((a,b)=>a-b);
+  let rows='<table><tr><th>Cut</th><th>'+team.team+'</th><th>Best other</th><th>Δ</th></tr>';
+  cuts.forEach(N=>{ const k=Math.min(N,v.length);
+    const tN=v.slice(0,k).reduce((a,b)=>a+b,0)/k;
+    const d=tN-best[N];
+    rows+=`<tr><td>Top ${N}</td><td>${tN.toFixed(2)}</td><td>${best[N].toFixed(2)}</td><td>${d>=0?'+':''}${d.toFixed(2)}</td></tr>`; });
+  rows+='</table>';
+  let cpairs=0, ctot=0;
+  for(let i=0;i<roster.length;i++) for(let j=i+1;j<roster.length;j++){
+    const c=pairConn(roster[i][0],roster[j][0]); if(c>0){cpairs++; ctot+=c;} }
+  let h=`<b>Added ${added.length} players:</b> ${added.map(p=>p[0]+' ('+p[1].toFixed(1)+')').join(', ')}<br><br>
+  <b>Strength vs. the board (lower = better; cap allows up to ${ALLOW} better than best per cut):</b>${rows}
+  <b>Internal connectivity:</b> ${cpairs} of ${roster.length*(roster.length-1)/2} pairs have history (score ${ctot}).<br>
+  <span style="color:#666;font-size:11px">Undo by moving players back to the pool, or reload a saved version.</span>`;
+  showOverlay('Auto-built roster — '+team.team,
+    'Optimized for internal connectivity plus competitiveness benchmarked to the best current team at each depth cut.',
+    'doc', h);
 }
 window.addEventListener('resize',()=>{drawChart();});
 resetAll();
