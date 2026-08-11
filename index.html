@@ -88,18 +88,24 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.4 · Aug 11 2026 · panel exclusivity + layout</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.5 · Aug 11 2026 · button rows</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
   <div class="controls">
-    <button class="pill" id="bScen" onclick="togglePanel('bScen')">Set-Up Scenarios</button>
-    <button class="pill" id="bPick" onclick="togglePanel('bPick')">Pre-Populated Teams</button>
-    <button class="pill" id="bAdd" onclick="addTeam()">+ Add team</button>
-    <button class="pill" id="bImp" onclick="togglePanel('bImp')">Import</button>
-    <button class="pill" id="bSaved" onclick="togglePanel('bSaved')">Saved Scenarios</button>
-    <button class="pill" id="bExp" onclick="togglePanel('bExp')">Export/Share</button>
-    <button class="pill" id="bReset" onclick="resetAll()">Reset to Baseline</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;width:100%">
+      <button class="pill" id="bScen" onclick="togglePanel('bScen')">Set-Up Scenarios</button>
+      <button class="pill" id="bPick" onclick="togglePanel('bPick')">Pre-Populated Teams</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;width:100%">
+      <button class="pill" id="bAdd" onclick="addTeam()">+ Add team</button>
+      <button class="pill" id="bReset" onclick="resetAll()">Reset to Baseline</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;width:100%">
+      <button class="pill" id="bImp" onclick="togglePanel('bImp')">Import</button>
+      <button class="pill" id="bExp" onclick="togglePanel('bExp')">Export/Share</button>
+      <button class="pill" id="bSaved" onclick="togglePanel('bSaved')">Saved Scenarios</button>
+    </div>
     <input type="file" id="importfile" accept=".json" style="display:none" onchange="importVersion(event)">
     <span class="movehint" id="hint"></span>
   </div>
@@ -1001,7 +1007,10 @@ function autoBuild(ti){
     'doc', h);
 }
 window.addEventListener('resize',()=>{drawChart();});
+if('scrollRestoration' in history) history.scrollRestoration='manual';
 resetAll();
+window.scrollTo(0,0);
+window.addEventListener('load',()=>window.scrollTo(0,0));
 </script>
 </body>
 </html>
