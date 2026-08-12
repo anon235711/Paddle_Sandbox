@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.13 · Aug 12 2026 · universal sidelines</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.14 · Aug 12 2026 · compact exports</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -617,23 +617,37 @@ function dl(name, mime, content){
 }
 function fnum(x){return isNaN(x)?'':(Math.round(x*100)/100).toFixed(2);}
 function exportCSV(){
-  const esc=s=>/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
-  let rows=['TEAM SUMMARY','Team,Record,Players,Top 4,Top 6,Top 8,Top 10,Bot 4/10,Mean,SD'];
-  state.filter(t=>!t.pool&&!t.side).forEach(t=>{const s=teamStats(t);
-    rows.push([esc(t.team),esc(t.rec),s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.b410),fnum(s.mean),fnum(s.sd)].join(','));});
-  rows.push('','ROSTERS','Team,Player,PTI,Last season');
-  state.forEach(t=>{
-    [...t.players].sort((a,b)=>a[1]-b[1]).forEach(p=>{
-      rows.push([esc(t.team),esc(p[0]),p[1].toFixed(1),esc(p[2]||'')].join(','));});});
+  const esc=s=>/[",\n]/.test(String(s))?'"'+String(s).replace(/"/g,'""')+'"':String(s);
+  const teams=state.filter(t=>!t.pool&&!t.side);
+  const maxN=Math.max(...teams.map(t=>t.players.length));
+  const rows=[];
+  rows.push(teams.map(t=>esc(t.team)+',').join(','));
+  rows.push(teams.map(()=>'Player,PTI').join(','));
+  for(let r=0;r<maxN;r++){
+    rows.push(teams.map(t=>{
+      const pl=[...t.players].sort((a,b)=>a[1]-b[1])[r];
+      return pl? esc(pl[0])+','+pl[1].toFixed(1) : ',';
+    }).join(','));
+  }
+  rows.push('');
+  const statDefs=[['Top 4 avg','t4'],['Top 6 avg','t6'],['Top 8 avg','t8'],['Top 10 avg','t10'],['Bottom 4/10 avg','b410']];
+  statDefs.forEach(([lbl,key])=>{
+    rows.push(teams.map(t=>{const s=teamStats(t); return esc(lbl)+','+fnum(s[key]);}).join(','));
+  });
+  const side=state.find(t=>t.side);
+  if(side && side.players.length){
+    rows.push(''); rows.push('SIDELINES,');
+    [...side.players].sort((a,b)=>a[1]-b[1]).forEach(p=>rows.push(esc(p[0])+','+p[1].toFixed(1)));
+  }
   const csv='\ufeff'+rows.join('\n');
   const tsv=rows.map(r=>{
     const out=[]; let cur='', q=false;
-    for(const ch of r){ if(ch==='"'){q=!q; cur+='';} else if(ch===','&&!q){out.push(cur); cur='';} else cur+=ch; }
+    for(const ch of r){ if(ch==='"'){q=!q;} else if(ch===','&&!q){out.push(cur); cur='';} else cur+=ch; }
     out.push(cur); return out.join('\t');
   }).join('\n');
   try{ dl('s1-rosters-'+new Date().toISOString().slice(0,10)+'.csv','text/csv;charset=utf-8',csv); }catch(e){}
   showOverlay('Excel export',
-    'A .csv download was attempted. If no file appeared, this viewer blocks downloads — use the box below instead: tap Select all, copy, and paste straight into Excel or Google Sheets (it pastes into columns). For one-tap downloads, open this tool in a regular browser.',
+    'A .csv download was attempted (compact grid: teams side-by-side, stats beneath). If no file appeared, copy below and paste into a spreadsheet.',
     'text', tsv);
 }
 function showOverlay(title, note, kind, content){
@@ -661,75 +675,112 @@ async function ensureJsPDF(){
   })();
   try{ await jspdfLoading; return !!(window.jspdf&&window.jspdf.jsPDF); }catch(e){ return false; }
 }
+async function svgToPng(id, scale){
+  const el=document.getElementById(id);
+  const w=el.clientWidth||1000, h=parseInt(el.getAttribute('height'))||300;
+  const clone=el.cloneNode(true);
+  clone.setAttribute('width', w); clone.setAttribute('height', h);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('x',0); bg.setAttribute('y',0); bg.setAttribute('width',w); bg.setAttribute('height',h);
+  bg.setAttribute('fill','#12483a'); clone.insertBefore(bg, clone.firstChild);
+  const xml=new XMLSerializer().serializeToString(clone);
+  const url='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(xml)));
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{ const cv=document.createElement('canvas');
+      cv.width=w*scale; cv.height=h*scale;
+      const cx=cv.getContext('2d'); cx.scale(scale,scale); cx.drawImage(img,0,0);
+      res({data:cv.toDataURL('image/png'), w, h}); };
+    img.onerror=rej; img.src=url;
+  });
+}
 async function exportPDF(){
   vmsg('Building PDF…');
   const ok=await ensureJsPDF();
   if(!ok){ exportPrintHTML(); return; }
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt', format:'letter'});
+  const PW=612, ML=36, CW=PW-2*ML;
+  doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text('Series 1 Roster Scenario', ML, 34);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(120);
+  doc.text('Exported '+new Date().toLocaleString()+' — lower PTI = better', ML, 44);
+  let y=52;
+  try{
+    const [c1,c2]=await Promise.all([svgToPng('chart2',2), svgToPng('chart3',2)]);
+    const iw=(CW-8)/2;
+    const h1=iw*c1.h/c1.w, h2=iw*c2.h/c2.w;
+    doc.addImage(c1.data,'PNG', ML, y, iw, h1);
+    doc.addImage(c2.data,'PNG', ML+iw+8, y, iw, h2);
+    y += Math.max(h1,h2)+10;
+  }catch(e){ }
   const teams=state.filter(t=>!t.pool&&!t.side);
-  doc.setFont('helvetica','bold'); doc.setFontSize(16);
-  doc.text('Series 1 Roster Scenario', 40, 44);
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110);
-  doc.text('Exported '+new Date().toLocaleString()+' — lower PTI = better', 40, 58);
-  doc.autoTable({startY:70,
-    head:[['Team','Rec','N','Top 4','Top 6','Top 8','Top 10','Bot 4/10','Mean','SD']],
-    body:teams.map(t=>{const s=teamStats(t);
-      return [t.team,t.rec,s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.b410),fnum(s.mean),fnum(s.sd)];}),
-    styles:{fontSize:8.5,cellPadding:3}, headStyles:{fillColor:[14,59,46]},
-    alternateRowStyles:{fillColor:[238,243,238]}});
-  let y=doc.lastAutoTable.finalY+16;
-  teams.forEach(t=>{
-    const body=[...t.players].sort((a,b)=>a[1]-b[1]).map((p,i)=>[i+1,p[0],p[1].toFixed(1)]);
-    if(y>640){doc.addPage(); y=44;}
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20);
-    doc.text(t.team+'  ('+t.rec+')', 40, y);
-    doc.autoTable({startY:y+6, head:[['#','Player','PTI']], body,
-      styles:{fontSize:8.5,cellPadding:2.5}, headStyles:{fillColor:[14,59,46]},
-      alternateRowStyles:{fillColor:[238,243,238]}, tableWidth:250, margin:{left:40}});
-    y=doc.lastAutoTable.finalY+18;
+  const cols=Math.min(4, Math.max(2, Math.ceil(teams.length/2)));
+  const colW=(CW-(cols-1)*8)/cols;
+  const rowsOfTeams=[];
+  for(let i=0;i<teams.length;i+=cols) rowsOfTeams.push(teams.slice(i,i+cols));
+  doc.setTextColor(20);
+  rowsOfTeams.forEach(rowTeams=>{
+    let maxY=y;
+    rowTeams.forEach((t,ci)=>{
+      const x=ML+ci*(colW+8);
+      let yy=y;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.text(t.team.length>24? t.team.slice(0,23)+'…':t.team, x, yy); yy+=9;
+      const s=teamStats(t);
+      doc.setFont('helvetica','normal'); doc.setFontSize(5.8); doc.setTextColor(90);
+      doc.text('T4 '+fnum(s.t4)+'  T10 '+fnum(s.t10)+'  B4/10 '+fnum(s.b410), x, yy); yy+=8;
+      doc.setTextColor(20); doc.setFontSize(6.4);
+      [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i2)=>{
+        const nm=p[0].length>20? p[0].slice(0,19)+'…':p[0];
+        doc.text((i2+1)+'. '+nm, x, yy);
+        doc.text(p[1].toFixed(1), x+colW-4, yy, {align:'right'});
+        yy+=7.2;
+      });
+      maxY=Math.max(maxY,yy);
+    });
+    y=maxY+10;
   });
+  const side=state.find(t=>t.side);
+  if(side && side.players.length && y<760){
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+    doc.text('Sidelines: ', ML, y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(6.4); doc.setTextColor(90);
+    doc.text([...side.players].sort((a,b)=>a[1]-b[1]).map(p=>p[0]+' '+p[1].toFixed(1)).join('  ·  '), ML+40, y, {maxWidth: CW-40});
+  }
   let saved=true;
   try{ doc.save('s1-rosters-'+new Date().toISOString().slice(0,10)+'.pdf'); }catch(e){ saved=false; }
-  vmsg(saved? 'PDF download attempted — if nothing appeared, see the preview overlay.' : 'Download blocked — showing preview instead.');
-  showOverlay('PDF export', 'A .pdf download was attempted. If no file appeared, this viewer blocks downloads — the document is previewed below (screenshot it, or open this tool in a regular browser for a true PDF download).', 'doc', buildDocHTML());
+  vmsg(saved? 'One-page PDF download attempted.' : 'Download blocked — showing preview instead.');
+  showOverlay('PDF export', 'A one-page .pdf (charts + compact rosters) was attempted. If no file appeared, the document is previewed below — open the tool in a regular browser for direct downloads.', 'doc', buildDocHTML());
 }
 function buildDocHTML(){
   const teams=state.filter(t=>!t.pool&&!t.side);
-  let h=`<b style="font-size:15px">Series 1 Roster Scenario</b><div style="color:#666;font-size:10px">Exported ${new Date().toLocaleString()} — lower PTI = better</div>
-  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Bot 4/10</th><th>Mean</th><th>SD</th></tr>`;
-  teams.forEach(t=>{const s=teamStats(t);
-    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.b410)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
-  h+='</table>';
+  let h=`<b style="font-size:14px">Series 1 Roster Scenario</b>
+  <div style="color:#666;font-size:9px;margin-bottom:6px">Exported ${new Date().toLocaleString()} — lower PTI = better</div>
+  <div>${document.getElementById('chart2')? document.getElementById('chart2').outerHTML.replace('width="100%"','width="420"'):''}</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">`;
   teams.forEach(t=>{
-    h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
-    [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i)=>{h+=`<tr><td>${i+1}</td><td>${p[0]}</td><td>${p[1].toFixed(1)}</td></tr>`;});
-    h+='</table>';});
+    const s=teamStats(t);
+    h+=`<div style="border:1px solid #ccc;border-radius:6px;padding:6px;font-size:10px">
+      <b>${t.team}</b><div style="color:#777;font-size:8.5px">T4 ${fnum(s.t4)} · T10 ${fnum(s.t10)} · B4/10 ${fnum(s.b410)}</div>`;
+    [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i)=>{
+      h+=`<div style="display:flex;justify-content:space-between"><span>${i+1}. ${p[0]}</span><span style="font-family:monospace">${p[1].toFixed(1)}</span></div>`;});
+    h+='</div>';});
+  h+='</div>';
+  const side=state.find(t=>t.side);
+  if(side && side.players.length){
+    h+=`<div style="margin-top:8px;font-size:9.5px"><b>Sidelines:</b> ${[...side.players].sort((a,b)=>a[1]-b[1]).map(p=>p[0]+' '+p[1].toFixed(1)).join(' · ')}</div>`;
+  }
   return h;
 }
 function exportPrintHTML(){
-  const teams=state.filter(t=>!t.pool&&!t.side);
-  let h=`<html><head><meta charset="utf-8"><title>Series 1 Roster Scenario</title>
-  <style>body{font-family:Helvetica,Arial,sans-serif;margin:36px;color:#111}
-  h1{font-size:20px} .sub{color:#666;font-size:11px}
-  table{border-collapse:collapse;margin:10px 0 18px;font-size:11px}
-  th,td{border:1px solid #bbb;padding:4px 8px;text-align:left}
-  th{background:#0e3b2e;color:#fff} tr:nth-child(even) td{background:#eef3ee}
-  h2{font-size:13px;margin:16px 0 2px} @media print{h2{page-break-after:avoid}}</style></head><body>
-  <h1>Series 1 Roster Scenario</h1><div class="sub">Exported ${new Date().toLocaleString()} — lower PTI = better.
-  Open this file in a browser and print / save as PDF.</div>
-  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Bot 4/10</th><th>Mean</th><th>SD</th></tr>`;
-  teams.forEach(t=>{const s=teamStats(t);
-    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.b410)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
-  h+='</table>';
-  teams.forEach(t=>{
-    h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
-    [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i)=>{h+=`<tr><td>${i+1}</td><td>${p[0]}</td><td>${p[1].toFixed(1)}</td></tr>`;});
-    h+='</table>';});
-  h+='</body></html>';
+  const h='<html><head><meta charset="utf-8"><title>Series 1 Roster Scenario</title></head><body style="font-family:Helvetica,Arial,sans-serif;margin:24px;color:#111">'
+    + buildDocHTML() + '<div style="color:#888;font-size:9px;margin-top:10px">Open this file in a browser and print / save as PDF.</div></body></html>';
   try{ dl('s1-rosters-print.html','text/html',h); }catch(e){}
-  showOverlay('PDF export', 'The PDF library could not load in this viewer. The document is previewed below (screenshot it), and a print-ready HTML download was attempted — open this tool in a regular browser for full export support.', 'doc', buildDocHTML());
+  showOverlay('PDF export', 'The PDF library could not load in this viewer. The compact document is previewed below, and a print-ready file download was attempted.', 'doc', buildDocHTML());
 }
+
 
 async function renderScenPanel(){
   const el=document.getElementById('scenlist');
