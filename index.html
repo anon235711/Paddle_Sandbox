@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.16 · Aug 12 2026 · multi-remove</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.17 · Aug 12 2026 · overlay close fix</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -159,7 +159,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="pill" id="oselect" style="display:none">Select all</button>
     <span id="oextra" style="display:contents"></span>
-    <button class="pill" onclick="document.getElementById('overlay').classList.remove('open')">Close</button>
+    <button class="pill" id="oclose">Close</button>
   </div></div></div>
 <div id="poolwrap"></div>
 <footer>Current PTIs (Aug 2026). The board opens on the 25/26 Series 1 baseline (all eight official rosters).
@@ -1139,6 +1139,17 @@ function autoBuild(ti){
     'Optimized for internal connectivity plus competitiveness benchmarked to the best current team at each depth cut.',
     'doc', h);
 }
+function closeOverlay(){
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  document.getElementById('overlay').classList.remove('open');
+}
+(function(){
+  const cb=document.getElementById('oclose');
+  cb.addEventListener('pointerup',e=>{e.preventDefault(); closeOverlay();});
+  cb.addEventListener('click',e=>{e.preventDefault(); closeOverlay();});
+  const ov=document.getElementById('overlay');
+  ov.addEventListener('click',e=>{ if(e.target===ov) closeOverlay(); });
+})();
 window.addEventListener('resize',()=>{drawChart();});
 if('scrollRestoration' in history) history.scrollRestoration='manual';
 resetAll();
