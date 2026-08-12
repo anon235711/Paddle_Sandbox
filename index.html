@@ -68,6 +68,7 @@ button.pill:active{background:var(--ball); color:var(--ink)}
 .pchip .pti.elite{color:#0d6b3f}
 .pchip .tag{font:600 10px 'IBM Plex Mono'; color:#5c6f66; background:#dfe7e0;
   border-radius:4px; padding:1px 5px}
+.pchip .pnum{font:600 11px 'IBM Plex Mono'; color:#8fae9f; min-width:18px; text-align:right}
 .pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
 footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
@@ -88,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.11 · Aug 11 2026 · slices 1-3/4-7/8-10</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.12 · Aug 12 2026 · numbered rosters</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -184,13 +185,14 @@ function deepcopy(x){return JSON.parse(JSON.stringify(x));}
 function topN(ptis,n){const s=[...ptis].sort((a,b)=>a-b); const k=Math.min(n,s.length);
   return s.slice(0,k).reduce((a,b)=>a+b,0)/k;}
 function fmt(x){return (Math.round(x*10)/10).toFixed(1);}
-function chipEl(p, ti, inPool){
+function chipEl(p, ti, inPool, num){
   const t = state[ti];
   const chip=document.createElement('div'); chip.className='pchip'; chip.draggable=true;
   if(!t.pool && HOME[p[0]]!==t.id) chip.classList.add('moved');
   if(selected && selected.name===p[0] && selected.ti===ti) chip.classList.add('selected');
   const tag=(inPool && p[2])? `<span class="tag">${p[2]}</span>`:'';
-  chip.innerHTML=`<span>${p[0]}</span>${tag}<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
+  const numHtml=(num!==undefined)? `<span class="pnum">${num}.</span>`:'';
+  chip.innerHTML=`${numHtml}<span>${p[0]}</span>${tag}<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
   chip.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',JSON.stringify({ti,name:p[0]}));
     chip.classList.add('dragging');});
   chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
@@ -304,7 +306,7 @@ function cardEl(t,ti){
       el.addEventListener('click',e=>e.stopPropagation());});
     card.querySelector('#pclear').addEventListener('click',e=>{e.stopPropagation(); poolMin=poolMax=null; render();});
   }
-  shown.forEach(p=>list.appendChild(chipEl(p,ti,poolish)));
+  shown.forEach((p,idx)=>list.appendChild(chipEl(p,ti,poolish, poolish? undefined : idx+1)));
   card.addEventListener('dragover',e=>{e.preventDefault(); card.classList.add('droptarget');});
   card.addEventListener('dragleave',()=>card.classList.remove('droptarget'));
   card.addEventListener('drop',e=>{e.preventDefault(); card.classList.remove('droptarget');
