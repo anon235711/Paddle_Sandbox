@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.18 · Aug 12 2026 · bigger multibar + top-10 PDF</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.19 · Aug 12 2026 · two-page PDF</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -716,12 +716,15 @@ async function exportPDF(){
   let y=52;
   try{
     const [c1,c2]=await Promise.all([svgToPng('chart2',2), svgToPng('chart3',2)]);
-    const iw=(CW-8)/2;
-    const h1=iw*c1.h/c1.w, h2=iw*c2.h/c2.w;
-    doc.addImage(c1.data,'PNG', ML, y, iw, h1);
-    doc.addImage(c2.data,'PNG', ML+iw+8, y, iw, h2);
-    y += Math.max(h1,h2)+10;
+    const h1=CW*c1.h/c1.w, h2=CW*c2.h/c2.w;
+    doc.addImage(c1.data,'PNG', ML, y, CW, h1);
+    y+=h1+14;
+    doc.addImage(c2.data,'PNG', ML, y, CW, h2);
   }catch(e){ }
+  doc.addPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20);
+  doc.text('Rosters', ML, 34);
+  y=44;
   const topOnly=!!(document.getElementById('pdfTop10')&&document.getElementById('pdfTop10').checked);
   if(topOnly){ renderCap=10; render(); await new Promise(r=>setTimeout(r,80)); }
   try{
@@ -732,18 +735,18 @@ async function exportPDF(){
         const cv=await html2canvas(card, {scale:2, backgroundColor:'#12483a', logging:false});
         shots.push({data:cv.toDataURL('image/png'), w:cv.width, h:cv.height});
       }
-      const cols=shots.length>6? 4 : 3;
-      const gap=6, colW=(CW-(cols-1)*gap)/cols;
-      const colY=new Array(cols).fill(y);
+      const cols=shots.length>6? 3 : (shots.length>4? 3 : 2);
+      const gap=8, colW=(CW-(cols-1)*gap)/cols;
+      let colY=new Array(cols).fill(y);
       shots.forEach(sh=>{
         let ci=0; for(let k=1;k<cols;k++) if(colY[k]<colY[ci]-0.1) ci=k;
         const ih=colW*sh.h/sh.w;
+        if(colY[ci]+ih>770){ doc.addPage(); colY=new Array(cols).fill(44); ci=0; }
         const x=ML+ci*(colW+gap);
-        if(colY[ci]+ih>780){ return; }
         doc.addImage(sh.data,'PNG', x, colY[ci], colW, ih);
         colY[ci]+=ih+gap;
       });
-      y=Math.max(...colY)+4;
+      y=Math.max(...colY)+6;
     } else { throw 0; }
   }catch(e){
     doc.setFontSize(8); doc.setTextColor(120);
@@ -752,7 +755,7 @@ async function exportPDF(){
   }
   if(topOnly){ renderCap=null; render(); }
   const side=state.find(t=>t.side);
-  if(side && side.players.length && y<760){
+  if(side && side.players.length){ if(y>740){doc.addPage(); y=44;}
     doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
     doc.text('Sidelines: ', ML, y);
     doc.setFont('helvetica','normal'); doc.setFontSize(6.4); doc.setTextColor(90);
@@ -761,7 +764,7 @@ async function exportPDF(){
   let saved=true;
   try{ doc.save('s1-rosters-'+new Date().toISOString().slice(0,10)+'.pdf'); }catch(e){ saved=false; }
   vmsg(saved? 'One-page PDF download attempted.' : 'Download blocked — showing preview instead.');
-  showOverlay('PDF export', 'A one-page .pdf (charts + compact rosters) was attempted. If no file appeared, the document is previewed below — open the tool in a regular browser for direct downloads.', 'doc', buildDocHTML());
+  showOverlay('PDF export', 'A .pdf (page 1: charts, page 2: roster panes) was attempted. If no file appeared, the document is previewed below — open the tool in a regular browser for direct downloads.', 'doc', buildDocHTML());
 }
 function buildDocHTML(){
   const teams=state.filter(t=>!t.pool&&!t.side);
