@@ -88,7 +88,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.7 · Aug 11 2026 · bottom 4/10 metric</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.8 · Aug 11 2026 · Bot 4/10 on chart</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -145,7 +145,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
   <div id="verlist" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
 </div>
 <div id="chartwrap">
-<div class="ct">Distribution chart — top-4/6/8/10 averages per team (higher on chart = better)</div>
+<div class="ct">Distribution chart — top-4/6/8/10 and bottom-4-of-10 averages per team (higher on chart = better)</div>
 <svg id="chart2" width="100%" height="300"></svg>
 </div>
 <div id="board"></div>
@@ -355,29 +355,34 @@ function drawChart2(){
   const teams=state.filter(t=>!t.pool&&!t.side && t.players.length);
   const W=svg.clientWidth||1000, H=300, padL=34, padR=86, padT=10, padB=26;
   const PAL=['#d9e64a','#5aa7ff','#ff7d9c','#2a9d5c','#e07b39','#c9a7ff','#7fd4c1','#f2d06b','#ff9e6e','#9ecae1'];
-  const cuts=[4,6,8,10];
+  const axisLabels=['Top 4','Top 6','Top 8','Top 10','Bot 4/10'];
   const series=teams.map(t=>{
     const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
-    return cuts.map(n=>{const k=Math.min(n,vals.length);
+    const pts=[4,6,8,10].map(n=>{const k=Math.min(n,vals.length);
       return vals.slice(0,k).reduce((a,b)=>a+b,0)/k;});
+    pts.push(vals.length>=10? vals.slice(6,10).reduce((a,b)=>a+b,0)/4 : null);
+    return pts;
   });
-  const all=series.flat();
+  const all=series.flat().filter(v=>v!==null);
   const ymin=Math.min(...all)-1, ymax=Math.max(...all)+1;
   const y=v=>padT+(H-padT-padB)*(v-ymin)/(ymax-ymin); // inverted: lower PTI (better) plots higher
-  const x=i=>padL+(W-padL-padR)*i/(cuts.length-1);
+  const x=i=>padL+(W-padL-padR)*i/(axisLabels.length-1);
   let s='';
   for(let g=Math.ceil(ymin); g<=ymax; g+=1){
     s+=`<line x1="${padL}" x2="${W-padR}" y1="${y(g)}" y2="${y(g)}" stroke="#1c4d3e"/>
         <text x="${padL-6}" y="${y(g)+4}" fill="#8fae9f" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${g}</text>`;}
-  cuts.forEach((n,i)=>{ s+=`<text x="${x(i)}" y="${H-8}" fill="#8fae9f" font-size="11" text-anchor="middle" font-family="Barlow">Top ${n}</text>`;});
+  axisLabels.forEach((lb,i)=>{ s+=`<text x="${x(i)}" y="${H-8}" fill="#8fae9f" font-size="11" text-anchor="middle" font-family="Barlow">${lb}</text>`;});
+  s+=`<line x1="${(x(3)+x(4))/2}" x2="${(x(3)+x(4))/2}" y1="${padT}" y2="${H-padB}" stroke="#1c4d3e" stroke-dasharray="4 4"/>`;
   const labels=[];
   teams.forEach((t,ti)=>{
     const c=PAL[ti%PAL.length];
-    const pts=series[ti].map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+    const defined=series[ti].map((v,i)=>[v,i]).filter(([v])=>v!==null);
+    const pts=defined.map(([v,i])=>`${x(i)},${y(v)}`).join(' ');
     s+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.2"/>`;
-    series[ti].forEach((v,i)=>{ s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4.2" fill="${c}" stroke="#0e3b2e"/>`;});
+    defined.forEach(([v,i])=>{ s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4.2" fill="${c}" stroke="#0e3b2e"/>`;});
     const nm=t.team.length>17? t.team.slice(0,16)+'…':t.team;
-    labels.push({nm,c,yy:y(series[ti][cuts.length-1])+4});
+    const lastV=defined[defined.length-1][0];
+    labels.push({nm,c,yy:y(lastV)+4});
   });
   labels.sort((a,b)=>a.yy-b.yy);
   for(let i=1;i<labels.length;i++){ if(labels[i].yy-labels[i-1].yy<13) labels[i].yy=labels[i-1].yy+13; }
