@@ -45,7 +45,7 @@ button.pill:active{background:var(--ball); color:var(--ink)}
 .iconbtn{background:none;border:none;color:#8fae9f;font-size:22px;cursor:pointer;padding:3px 7px;line-height:1}
 .hbtns{margin-left:auto}
 .iconbtn:hover{color:var(--ball)}
-.stats{display:grid; grid-template-columns:repeat(4,1fr);
+.stats{display:grid; grid-template-columns:repeat(5,1fr);
   border-bottom:1.5px solid #23594a; background:#0b3226;}
 .stat{padding:7px 4px 8px; text-align:center; border-right:1px solid #1c4d3e}
 .stat:last-child{border-right:none}
@@ -88,7 +88,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.6 · Aug 11 2026 · preset numbering</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.7 · Aug 11 2026 · bottom 4/10 metric</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -222,6 +222,8 @@ function cardEl(t,ti){
   if(!poolish){
     const ptis=t.players.map(p=>p[1]); let stats='';
     const league=state.filter(x=>!x.pool&&!x.side&&x.players.length>0);
+    const bot410=arr=>{ if(arr.length<10) return NaN;
+      const v=[...arr].sort((a,b)=>a-b).slice(6,10); return v.reduce((a,b)=>a+b,0)/4; };
     [4,6,8,10].forEach(n=>{
       const has=ptis.length>=n; const v=has? topN(ptis,n):NaN;
       const b=(t.id in BASE && BASE[t.id].length)? topN(BASE[t.id],n):NaN;
@@ -246,6 +248,32 @@ function cardEl(t,ti){
         <div class="val">${has? fmt(v):'—'}</div>
         <div class="rk">${rkhtml}</div><div class="rk">${avghtml}</div>
         <div class="delta ${cls}">${dhtml}</div></div>`;});
+    {
+      const v=bot410(ptis); const has=!isNaN(v);
+      const b=(t.id in BASE)? bot410(BASE[t.id]):NaN;
+      let dhtml='&nbsp;', cls='';
+      if(has && !isNaN(b)){const d=v-b;
+        if(Math.abs(d)>=0.05){cls=d<0?'better':'worse';
+          dhtml=(d<0?'▼':'▲')+' = '+fmt(Math.abs(d))+' '+(d<0?'better':'worse');}}
+      let rkhtml='&nbsp;', avghtml='&nbsp;';
+      const elig=league.filter(x=>x.players.length>=10);
+      if(has && elig.length>1){
+        const all=elig.map(x=>bot410(x.players.map(p=>p[1]))).sort((a,b)=>a-b);
+        const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
+        const frac=(rank-1)/(all.length-1);
+        const hue=Math.round(140*(1-frac));
+        const label=rank===1?'best':(rank===2?'2nd':(rank===3?'3rd':rank+'th'));
+        rkhtml=`<span style="color:hsl(${hue},60%,58%)">${label} of ${all.length} teams</span>`;
+        const avg=all.reduce((a,b)=>a+b,0)/all.length;
+        const da=v-avg;
+        const ac= Math.abs(da)<0.1? '#8fae9f' : (da<0? 'hsl(140,60%,58%)':'hsl(8,65%,62%)');
+        avghtml=`<span style="color:${ac}">${da<0?'−':'+'}${fmt(Math.abs(da))} vs avg</span>`;
+      }
+      stats+=`<div class="stat"><div class="lbl" title="Average of players 7–10">Bot 4/10</div>
+        <div class="val">${has? fmt(v):'—'}</div>
+        <div class="rk">${rkhtml}</div><div class="rk">${avghtml}</div>
+        <div class="delta ${cls}">${dhtml}</div></div>`;
+    }
     inner+=`<div class="stats">${stats}</div>`;
   }
   if(t.pool){
@@ -535,9 +563,10 @@ async function deleteShared(btn,nm){
 function teamStats(t){
   const v=t.players.map(p=>p[1]).sort((a,b)=>a-b);
   const tn=n=>{ if(v.length<n) return NaN; return v.slice(0,n).reduce((a,b)=>a+b,0)/n; };
+  const b410=v.length>=10? v.slice(6,10).reduce((a,b)=>a+b,0)/4:NaN;
   const mean=v.length? v.reduce((a,b)=>a+b,0)/v.length:NaN;
   const sd=v.length? Math.sqrt(v.reduce((a,b)=>a+(b-mean)*(b-mean),0)/v.length):NaN;
-  return {n:v.length, t4:tn(4), t6:tn(6), t8:tn(8), t10:tn(10), mean, sd};
+  return {n:v.length, t4:tn(4), t6:tn(6), t8:tn(8), t10:tn(10), b410, mean, sd};
 }
 function dl(name, mime, content){
   const blob=new Blob([content],{type:mime});
@@ -547,9 +576,9 @@ function dl(name, mime, content){
 function fnum(x){return isNaN(x)?'':(Math.round(x*100)/100).toFixed(2);}
 function exportCSV(){
   const esc=s=>/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
-  let rows=['TEAM SUMMARY','Team,Record,Players,Top 4,Top 6,Top 8,Top 10,Mean,SD'];
+  let rows=['TEAM SUMMARY','Team,Record,Players,Top 4,Top 6,Top 8,Top 10,Bot 4/10,Mean,SD'];
   state.filter(t=>!t.pool&&!t.side).forEach(t=>{const s=teamStats(t);
-    rows.push([esc(t.team),esc(t.rec),s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.mean),fnum(s.sd)].join(','));});
+    rows.push([esc(t.team),esc(t.rec),s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.b410),fnum(s.mean),fnum(s.sd)].join(','));});
   rows.push('','ROSTERS','Team,Player,PTI,Last season');
   state.forEach(t=>{
     [...t.players].sort((a,b)=>a[1]-b[1]).forEach(p=>{
@@ -602,9 +631,9 @@ async function exportPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110);
   doc.text('Exported '+new Date().toLocaleString()+' — lower PTI = better', 40, 58);
   doc.autoTable({startY:70,
-    head:[['Team','Rec','N','Top 4','Top 6','Top 8','Top 10','Mean','SD']],
+    head:[['Team','Rec','N','Top 4','Top 6','Top 8','Top 10','Bot 4/10','Mean','SD']],
     body:teams.map(t=>{const s=teamStats(t);
-      return [t.team,t.rec,s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.mean),fnum(s.sd)];}),
+      return [t.team,t.rec,s.n,fnum(s.t4),fnum(s.t6),fnum(s.t8),fnum(s.t10),fnum(s.b410),fnum(s.mean),fnum(s.sd)];}),
     styles:{fontSize:8.5,cellPadding:3}, headStyles:{fillColor:[14,59,46]},
     alternateRowStyles:{fillColor:[238,243,238]}});
   let y=doc.lastAutoTable.finalY+16;
@@ -626,9 +655,9 @@ async function exportPDF(){
 function buildDocHTML(){
   const teams=state.filter(t=>!t.pool&&!t.side);
   let h=`<b style="font-size:15px">Series 1 Roster Scenario</b><div style="color:#666;font-size:10px">Exported ${new Date().toLocaleString()} — lower PTI = better</div>
-  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Mean</th><th>SD</th></tr>`;
+  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Bot 4/10</th><th>Mean</th><th>SD</th></tr>`;
   teams.forEach(t=>{const s=teamStats(t);
-    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
+    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.b410)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
   h+='</table>';
   teams.forEach(t=>{
     h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
@@ -647,9 +676,9 @@ function exportPrintHTML(){
   h2{font-size:13px;margin:16px 0 2px} @media print{h2{page-break-after:avoid}}</style></head><body>
   <h1>Series 1 Roster Scenario</h1><div class="sub">Exported ${new Date().toLocaleString()} — lower PTI = better.
   Open this file in a browser and print / save as PDF.</div>
-  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Mean</th><th>SD</th></tr>`;
+  <table><tr><th>Team</th><th>Rec</th><th>N</th><th>Top 4</th><th>Top 6</th><th>Top 8</th><th>Top 10</th><th>Bot 4/10</th><th>Mean</th><th>SD</th></tr>`;
   teams.forEach(t=>{const s=teamStats(t);
-    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
+    h+=`<tr><td>${t.team}</td><td>${t.rec}</td><td>${s.n}</td><td>${fnum(s.t4)}</td><td>${fnum(s.t6)}</td><td>${fnum(s.t8)}</td><td>${fnum(s.t10)}</td><td>${fnum(s.b410)}</td><td>${fnum(s.mean)}</td><td>${fnum(s.sd)}</td></tr>`;});
   h+='</table>';
   teams.forEach(t=>{
     h+=`<h2>${t.team} (${t.rec})</h2><table><tr><th>#</th><th>Player</th><th>PTI</th></tr>`;
