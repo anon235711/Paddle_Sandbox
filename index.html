@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.14 · Aug 12 2026 · compact exports</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.15 · Aug 12 2026 · 1st + card-image PDF</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -241,7 +241,7 @@ function cardEl(t,ti){
         const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
         const frac=(rank-1)/(all.length-1);
         const hue=Math.round(140*(1-frac));
-        const label=rank===1?'best':(rank===2?'2nd':(rank===3?'3rd':rank+'th'));
+        const label=rank===1?'1st':(rank===2?'2nd':(rank===3?'3rd':rank+'th'));
         rkhtml=`<span style="color:hsl(${hue},60%,58%)">${label} of ${all.length} teams</span>`;
         const avg=all.reduce((a,b)=>a+b,0)/all.length;
         const da=v-avg;
@@ -266,7 +266,7 @@ function cardEl(t,ti){
         const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
         const frac=(rank-1)/(all.length-1);
         const hue=Math.round(140*(1-frac));
-        const label=rank===1?'best':(rank===2?'2nd':(rank===3?'3rd':rank+'th'));
+        const label=rank===1?'1st':(rank===2?'2nd':(rank===3?'3rd':rank+'th'));
         rkhtml=`<span style="color:hsl(${hue},60%,58%)">${label} of ${all.length} teams</span>`;
         const avg=all.reduce((a,b)=>a+b,0)/all.length;
         const da=v-avg;
@@ -668,10 +668,11 @@ let jspdfLoading=null;
 function loadScript(url){return new Promise((res,rej)=>{const s=document.createElement('script');
   s.src=url; s.onload=res; s.onerror=rej; document.head.appendChild(s);});}
 async function ensureJsPDF(){
-  if(window.jspdf&&window.jspdf.jsPDF) return true;
+  if(window.jspdf&&window.jspdf.jsPDF&&window.html2canvas) return true;
   if(!jspdfLoading) jspdfLoading=(async()=>{
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   })();
   try{ await jspdfLoading; return !!(window.jspdf&&window.jspdf.jsPDF); }catch(e){ return false; }
 }
@@ -715,33 +716,32 @@ async function exportPDF(){
     doc.addImage(c2.data,'PNG', ML+iw+8, y, iw, h2);
     y += Math.max(h1,h2)+10;
   }catch(e){ }
-  const teams=state.filter(t=>!t.pool&&!t.side);
-  const cols=Math.min(4, Math.max(2, Math.ceil(teams.length/2)));
-  const colW=(CW-(cols-1)*8)/cols;
-  const rowsOfTeams=[];
-  for(let i=0;i<teams.length;i+=cols) rowsOfTeams.push(teams.slice(i,i+cols));
-  doc.setTextColor(20);
-  rowsOfTeams.forEach(rowTeams=>{
-    let maxY=y;
-    rowTeams.forEach((t,ci)=>{
-      const x=ML+ci*(colW+8);
-      let yy=y;
-      doc.setFont('helvetica','bold'); doc.setFontSize(8);
-      doc.text(t.team.length>24? t.team.slice(0,23)+'…':t.team, x, yy); yy+=9;
-      const s=teamStats(t);
-      doc.setFont('helvetica','normal'); doc.setFontSize(5.8); doc.setTextColor(90);
-      doc.text('T4 '+fnum(s.t4)+'  T10 '+fnum(s.t10)+'  B4/10 '+fnum(s.b410), x, yy); yy+=8;
-      doc.setTextColor(20); doc.setFontSize(6.4);
-      [...t.players].sort((a,b)=>a[1]-b[1]).forEach((p,i2)=>{
-        const nm=p[0].length>20? p[0].slice(0,19)+'…':p[0];
-        doc.text((i2+1)+'. '+nm, x, yy);
-        doc.text(p[1].toFixed(1), x+colW-4, yy, {align:'right'});
-        yy+=7.2;
+  try{
+    if(window.html2canvas){
+      const cards=[...document.querySelectorAll('#board .card')];
+      const shots=[];
+      for(const card of cards){
+        const cv=await html2canvas(card, {scale:2, backgroundColor:'#12483a', logging:false});
+        shots.push({data:cv.toDataURL('image/png'), w:cv.width, h:cv.height});
+      }
+      const cols=shots.length>6? 4 : 3;
+      const gap=6, colW=(CW-(cols-1)*gap)/cols;
+      const colY=new Array(cols).fill(y);
+      shots.forEach(sh=>{
+        let ci=0; for(let k=1;k<cols;k++) if(colY[k]<colY[ci]-0.1) ci=k;
+        const ih=colW*sh.h/sh.w;
+        const x=ML+ci*(colW+gap);
+        if(colY[ci]+ih>780){ return; }
+        doc.addImage(sh.data,'PNG', x, colY[ci], colW, ih);
+        colY[ci]+=ih+gap;
       });
-      maxY=Math.max(maxY,yy);
-    });
-    y=maxY+10;
-  });
+      y=Math.max(...colY)+4;
+    } else { throw 0; }
+  }catch(e){
+    doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('Team panes could not be captured in this viewer — see the in-app preview.', ML, y+10);
+    y+=24;
+  }
   const side=state.find(t=>t.side);
   if(side && side.players.length && y<760){
     doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
