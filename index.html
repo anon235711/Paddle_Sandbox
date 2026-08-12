@@ -89,7 +89,8 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.22 · Aug 12 2026 · GBRC default + reversed presets</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.23 · Aug 12 2026 · scenario label</span></h1>
+  <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -182,6 +183,12 @@ function rebaseline(src){
 }
 rebaseline(RAW);
 let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
+const DEFAULT_LABEL='#1 · 6-Team Uncapped (New GBRC)';
+let scenLabel=DEFAULT_LABEL, scenEdited=false;
+function scenLabelFull(){ return scenLabel + (scenEdited? ' (edited)':''); }
+function updateScenLabel(){ const el=document.getElementById('scenlabel'); if(el) el.textContent='Loaded: '+scenLabelFull(); }
+function setScen(lbl){ scenLabel=lbl; scenEdited=false; updateScenLabel(); }
+function markEdited(){ if(!scenEdited){ scenEdited=true; updateScenLabel(); } }
 function deepcopy(x){return JSON.parse(JSON.stringify(x));}
 function topN(ptis,n){const s=[...ptis].sort((a,b)=>a-b); const k=Math.min(n,s.length);
   return s.slice(0,k).reduce((a,b)=>a+b,0)/k;}
@@ -444,12 +451,14 @@ function movePlayer(from,name,to){
   if(i<0) return;
   const [pl]=state[from].players.splice(i,1);
   state[to].players.push(pl);
+  markEdited();
   render();
 }
 function poolIndex(){return state.findIndex(t=>t.pool);}
 function addTeam(){
   const ti=poolIndex();
   state.splice(ti,0,{team:'New club',rec:'—',players:[],id:nextId++});
+  markEdited();
   selected=null; editingTeam=ti; updateHint(); render();
   setTimeout(()=>{const b=document.getElementById('board');
     if(b && b.lastElementChild) b.lastElementChild.scrollIntoView({behavior:'smooth', block:'center'});}, 60);
@@ -458,12 +467,13 @@ function deleteTeam(ti){
   const pool=state[poolIndex()];
   pool.players.push(...state[ti].players);
   state.splice(ti,1);
+  markEdited();
   selected=null; editingTeam=null; updateHint(); render();
 }
 
 function updateHint(){document.getElementById('hint').innerHTML=selected?
   `<b>${selected.name}</b> selected — tap a team header to move`:'';}
-function resetAll(){state=deepcopy(RAW); rebaseline(RAW); selected=null; updateHint(); render();}
+function resetAll(){state=deepcopy(RAW); rebaseline(RAW); setScen(DEFAULT_LABEL); selected=null; updateHint(); render();}
 const LSKEY='s1sandbox_versions';
 function loadStore(){ try{return JSON.parse(localStorage.getItem(LSKEY)||'{}');}catch(e){return window.__mem||{};} }
 function saveStore(v){ window.__mem=v; try{localStorage.setItem(LSKEY,JSON.stringify(v));}catch(e){} }
@@ -507,6 +517,7 @@ function loadVersion(nm){
   const store=loadStore(); if(!store[nm]) return;
   state=deepcopy(store[nm].state); nextId=store[nm].nextId||state.length;
   rebaseline(state);
+  setScen('Saved: '+nm);
   selected=null; updateHint(); render();
 }
 function deleteVersion(btn,nm){
@@ -566,6 +577,7 @@ async function loadShareCode(){
   const inp=document.getElementById('pastecode'); if(!inp||!inp.value.trim()) return;
   try{ const d=await codeToState(inp.value);
     state=d.state; nextId=d.nextId||state.length; rebaseline(state); selected=null; editingTeam=null; updateHint(); render();
+    setScen('Imported code · '+new Date().toLocaleDateString());
     vmsg('Scenario loaded from code.'); inp.value='';
   }catch(e){ vmsg('That code could not be read.'); }
 }
@@ -600,6 +612,7 @@ async function loadShared(nm){
   try{ const res=await window.storage.get('sver:'+nm, true);
     const d=await codeToState(res.value);
     state=d.state; nextId=d.nextId||state.length; rebaseline(state); selected=null; editingTeam=null; updateHint(); render();
+    setScen('Shared: '+nm);
     vmsg('Shared version loaded.');
   }catch(e){ vmsg('Could not load that shared version.'); }
 }
@@ -627,6 +640,8 @@ function exportCSV(){
   const teams=state.filter(t=>!t.pool&&!t.side);
   const maxN=Math.max(...teams.map(t=>t.players.length));
   const rows=[];
+  rows.push(esc('Scenario: '+scenLabelFull()));
+  rows.push('');
   rows.push(teams.map(t=>esc(t.team)+',').join(','));
   rows.push(teams.map(()=>'Player,PTI').join(','));
   for(let r=0;r<maxN;r++){
@@ -710,7 +725,7 @@ async function exportPDF(){
   const doc=new jsPDF({unit:'pt', format:'letter'});
   const PW=612, ML=36, CW=PW-2*ML;
   doc.setFont('helvetica','bold'); doc.setFontSize(13);
-  doc.text('Series 1 Roster Scenario', ML, 34);
+  doc.text('S1 Sandbox — '+scenLabelFull(), ML, 34);
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(120);
   doc.text('Exported '+new Date().toLocaleString()+' — lower PTI = better', ML, 44);
   let y=52;
@@ -771,7 +786,7 @@ async function exportPDF(){
 }
 function buildDocHTML(){
   const teams=state.filter(t=>!t.pool&&!t.side);
-  let h=`<b style="font-size:14px">Series 1 Roster Scenario</b>
+  let h=`<b style="font-size:14px">S1 Sandbox — ${scenLabelFull()}</b>
   <div style="color:#666;font-size:9px;margin-bottom:6px">Exported ${new Date().toLocaleString()} — lower PTI = better</div>
   <div>${document.getElementById('chart2')? document.getElementById('chart2').outerHTML.replace('width="100%"','width="420"'):''}</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px">`;
@@ -813,7 +828,7 @@ async function renderScenPanel(){
   arr.forEach((s,i)=>{ rows+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
     <b style="color:#e9efe9">${i+1}. ${s.name}</b><span style="color:#8fae9f;font-size:11px">${s.date||''}</span>
     <span style="margin-left:auto"></span>
-    <button class="pill" style="padding:3px 12px;font-size:11.5px" onclick='loadPublished(${JSON.stringify(s.code)})'>Load</button></div>`; });
+    <button class="pill" style="padding:3px 12px;font-size:11.5px" onclick='loadPublished(${JSON.stringify(s.code)},${JSON.stringify('#'+(i+1)+' · '+s.name)})'>Load</button></div>`; });
   el.innerHTML=rows||'None published yet.';
 }
 const PANELS={bScen:'scenwrap', bPick:'pickwrap', bImp:'impwrap', bSaved:'verwrap', bExp:'expwrap'};
@@ -907,6 +922,7 @@ function commitCatalogTeam(c, players, stayed){
   let msg='Added '+c.team+' ('+players.length+' players'+(c.missing? ', '+c.missing+' unrated omitted':'')+')';
   if(stayed.length) msg+=' — '+stayed.length+' stayed on their current teams';
   vmsg(msg);
+  markEdited();
   render(); renderPicker();
 }
 function removeCatalogTeam(catId){
@@ -915,6 +931,7 @@ function removeCatalogTeam(catId){
   const pool=state[poolIndex()];
   pool.players.push(...state[ti].players);
   state.splice(ti,1);
+  markEdited();
   selected=null; editingTeam=null; render(); renderPicker();
 }
 function startMulti(ti){
@@ -945,7 +962,7 @@ function multiDone(){
     const i=state[ti]?.players.findIndex(p=>p[0]===name);
     if(i>=0 && ti!==target){ const [pl]=state[ti].players.splice(i,1); state[target].players.push(pl); }
   });
-  const n=moves.length; multiCancel();
+  const n=moves.length; markEdited(); multiCancel();
   vmsg('Added '+n+' player(s).');
 }
 function multiCancel(){
@@ -1043,6 +1060,7 @@ function addSuggested(ti,name){
     const i=state[tj].players.findIndex(p=>p[0]===name);
     if(i>=0){ const [pl]=state[tj].players.splice(i,1); state[ti].players.push(pl); break; }
   }
+  markEdited();
   render(); renderSuggest();
 }
 async function renderPublished(){
@@ -1062,9 +1080,10 @@ async function renderPublished(){
       <div style="color:#8fae9f;font-size:11.5px;margin-top:6px">To publish: copy a share code and send it to the group's admin to add here.</div>`;
   }catch(e){ w.innerHTML='<span style="color:#8fae9f;font-size:12px">Published scenarios unavailable (offline or file missing).</span>'; }
 }
-async function loadPublished(code){
+async function loadPublished(code, label){
   try{ const d=await codeToState(code);
     state=d.state; nextId=d.nextId||state.length; rebaseline(state); selected=null; editingTeam=null; updateHint(); render();
+    setScen(label||'Preset scenario');
     vmsg('Published scenario loaded.');
   }catch(e){ vmsg('Could not load that scenario.'); }
 }
@@ -1131,6 +1150,7 @@ function autoBuild(ti){
   const addedNames=new Set(added.map(p=>p[0]));
   state[pi].players=state[pi].players.filter(p=>!addedNames.has(p[0]));
   state[ti].players=roster;
+  markEdited();
   render();
   // summary overlay
   const v=roster.map(p=>p[1]).sort((a,b)=>a-b);
@@ -1165,6 +1185,7 @@ function closeOverlay(){
 window.addEventListener('resize',()=>{drawChart();});
 if('scrollRestoration' in history) history.scrollRestoration='manual';
 resetAll();
+updateScenLabel();
 window.scrollTo(0,0);
 window.addEventListener('load',()=>window.scrollTo(0,0));
 </script>
