@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.15 · Aug 12 2026 · 1st + card-image PDF</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.16 · Aug 12 2026 · multi-remove</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -199,11 +199,13 @@ function chipEl(p, ti, inPool, num){
   if(multi){
     const key=ti+'|'+p[0];
     if(multi.sel.has(key)) chip.classList.add('selected');
-    if(ti===multi.target) chip.style.opacity='.45';
+    const canPick = multi.pickFrom==null ? ti!==multi.target : ti===multi.pickFrom;
+    if(!canPick) chip.style.opacity='.45';
   }
   chip.addEventListener('click',()=>{
     if(multi){
-      if(ti===multi.target) return;
+      const canPick = multi.pickFrom==null ? ti!==multi.target : ti===multi.pickFrom;
+      if(!canPick) return;
       const key=ti+'|'+p[0];
       if(multi.sel.has(key)) multi.sel.delete(key); else multi.sel.add(key);
       updateMultiBar(); render(); return;
@@ -324,6 +326,8 @@ function cardEl(t,ti){
     const hb=card.querySelector('.hbtns');
     const bM=document.createElement('button'); bM.className='iconbtn'; bM.title='Add multiple players'; bM.textContent='⊕';
     bM.addEventListener('click',e=>{e.stopPropagation(); startMulti(ti);});
+    const bRm=document.createElement('button'); bRm.className='iconbtn'; bRm.title='Remove multiple players (to free agents)'; bRm.textContent='⊖';
+    bRm.addEventListener('click',e=>{e.stopPropagation(); startMultiRemove(ti);});
     const bS=document.createElement('button'); bS.className='iconbtn'; bS.title='Suggest connected players';
     bS.innerHTML='<svg viewBox="0 0 32 30" width="29" height="27" style="vertical-align:-5px">'+
       '<path d="M8.5 20.5a5.4 5.4 0 0 1-1.3-10.6 7.6 7.6 0 0 1 14.8-2.2A6 6 0 0 1 23 20a22 22 0 0 1-14.5.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'+
@@ -341,7 +345,7 @@ function cardEl(t,ti){
     bD.addEventListener('click',e=>{e.stopPropagation();
       if(pendingDelete===ti){ pendingDelete=null; deleteTeam(ti); }
       else { pendingDelete=ti; render(); setTimeout(()=>{ if(pendingDelete===ti){pendingDelete=null; render();} }, 3000); }});
-    hb.appendChild(bM); hb.appendChild(bS); hb.appendChild(bE); hb.appendChild(bD);
+    hb.appendChild(bM); hb.appendChild(bRm); hb.appendChild(bS); hb.appendChild(bE); hb.appendChild(bD);
     const inp=card.querySelector('.tnamein');
     if(inp){
       setTimeout(()=>{inp.focus(); inp.select();},0);
@@ -903,11 +907,18 @@ function removeCatalogTeam(catId){
   selected=null; editingTeam=null; render(); renderPicker();
 }
 function startMulti(ti){
-  multi={target:ti, sel:new Set()};
+  multi={target:ti, sel:new Set(), pickFrom:null};
   selected=null; updateHint();
   document.getElementById('multibar').style.display='flex';
   updateMultiBar(); render();
   vmsg('Multi-add: tap players anywhere, then Done.');
+}
+function startMultiRemove(ti){
+  multi={target:poolIndex(), sel:new Set(), pickFrom:ti};
+  selected=null; updateHint();
+  document.getElementById('multibar').style.display='flex';
+  updateMultiBar(); render();
+  vmsg('Multi-remove: tap players on '+state[ti].team+', then Done to send them to free agents.');
 }
 function updateMultiBar(){
   if(!multi) return;
