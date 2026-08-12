@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.17 · Aug 12 2026 · overlay close fix</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.18 · Aug 12 2026 · bigger multibar + top-10 PDF</span></h1>
   <div class="sub">Drag players between teams (or tap player, then tap a team header). Top-4/6/8/10 update live;
   deltas compare to each team's starting roster. Rename (✎), delete (✕), or add teams — deleted teams' players
   return to the free-agent pool. Lower PTI = better.</div>
@@ -129,6 +129,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
     <button class="pill" onclick="copyShareCode()">Copy share code</button>
     <button class="pill" onclick="exportCSV()">Excel (CSV)</button>
     <button class="pill" onclick="exportPDF()">PDF</button>
+    <label style="font-size:12.5px;color:#bccfc4;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pdfTop10" style="accent-color:#d9e64a;width:15px;height:15px"> Top 10 per roster only</label>
   </div>
   <div style="color:#8fae9f;font-size:11.5px;margin-top:8px">Share codes paste into anyone's Save/Load panel. Excel/PDF download directly (with copy/preview fallbacks in restricted viewers).</div>
 </div>
@@ -136,10 +137,10 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Starting teams — check to add to the board, uncheck to remove (players go to the pool)</div>
   <div id="picklist" style="margin-top:8px; display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:4px 14px; font-size:13.5px"></div>
 </div>
-<div id="multibar" style="display:none; position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:70; background:#0b3226; border:1.5px solid var(--ball); border-radius:999px; padding:8px 14px; display:none; gap:10px; align-items:center">
-  <span id="multimsg" style="font:600 13px 'Barlow'; color:var(--line)"></span>
-  <button class="pill" style="padding:4px 14px; font-size:12px" onclick="multiDone()">Done</button>
-  <button class="pill" style="padding:4px 14px; font-size:12px; color:#e07b39; border-color:#e07b39" onclick="multiCancel()">Cancel</button>
+<div id="multibar" style="display:none; position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:70; background:#0b3226; border:1.5px solid var(--ball); border-radius:16px; padding:12px 18px; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; max-width:94vw; width:max-content; box-shadow:0 4px 18px rgba(0,0,0,.4)">
+  <span id="multimsg" style="font:600 15px 'Barlow'; color:var(--line); white-space:normal; text-align:center"></span>
+  <button class="pill" style="padding:7px 20px; font-size:14px" onclick="multiDone()">Done</button>
+  <button class="pill" style="padding:7px 20px; font-size:14px; color:#e07b39; border-color:#e07b39" onclick="multiCancel()">Cancel</button>
 </div>
 <div id="verwrap" style="display:none; margin-top:12px; background:var(--court-2); border:1.5px solid #23594a; border-radius:10px; padding:10px 12px;">
   <div class="ct" style="font:600 12px 'Barlow'; letter-spacing:.08em; text-transform:uppercase; color:#8fae9f">Saved scenarios — stored on this device</div>
@@ -180,7 +181,7 @@ function rebaseline(src){
   });
 }
 rebaseline(RAW);
-let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null;
+let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
 function deepcopy(x){return JSON.parse(JSON.stringify(x));}
 function topN(ptis,n){const s=[...ptis].sort((a,b)=>a-b); const k=Math.min(n,s.length);
   return s.slice(0,k).reduce((a,b)=>a+b,0)/k;}
@@ -295,6 +296,7 @@ function cardEl(t,ti){
   card.innerHTML=inner;
   const list=card.querySelector('.plist');
   let shown=[...t.players].sort((a,b)=>a[1]-b[1]);
+  if(renderCap && !poolish) shown=shown.slice(0,renderCap);
   if(t.pool){
     const total=shown.length;
     if(poolMin!==null) shown=shown.filter(p=>p[1]>=poolMin);
@@ -720,6 +722,8 @@ async function exportPDF(){
     doc.addImage(c2.data,'PNG', ML+iw+8, y, iw, h2);
     y += Math.max(h1,h2)+10;
   }catch(e){ }
+  const topOnly=!!(document.getElementById('pdfTop10')&&document.getElementById('pdfTop10').checked);
+  if(topOnly){ renderCap=10; render(); await new Promise(r=>setTimeout(r,80)); }
   try{
     if(window.html2canvas){
       const cards=[...document.querySelectorAll('#board .card')];
@@ -746,6 +750,7 @@ async function exportPDF(){
     doc.text('Team panes could not be captured in this viewer — see the in-app preview.', ML, y+10);
     y+=24;
   }
+  if(topOnly){ renderCap=null; render(); }
   const side=state.find(t=>t.side);
   if(side && side.players.length && y<760){
     doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
@@ -922,8 +927,9 @@ function startMultiRemove(ti){
 }
 function updateMultiBar(){
   if(!multi) return;
-  document.getElementById('multimsg').textContent =
-    multi.sel.size+' selected → '+ (state[multi.target]? state[multi.target].team : '');
+  let nm = state[multi.target]? state[multi.target].team : '';
+  if(state[multi.target] && state[multi.target].pool) nm='Free agents';
+  document.getElementById('multimsg').textContent = multi.sel.size+' selected → '+nm;
 }
 function multiDone(){
   if(!multi) return;
