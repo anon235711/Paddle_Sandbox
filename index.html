@@ -73,6 +73,10 @@ button.pill:active{background:var(--ball); color:var(--ink)}
 .pchip .pttag{font:700 9.5px 'IBM Plex Mono'; color:#0e5c86; background:#d5eaf6; border:1px solid #9fcbe4;
   border-radius:4px; padding:1px 5px; white-space:nowrap}
 .pchip .rawpti{font:500 10px 'IBM Plex Mono'; color:#96a89d; text-decoration:line-through; margin-left:2px}
+.ptbtn{font:700 9px 'IBM Plex Mono'; color:#7d9488; background:transparent; border:1.5px solid #b9c9bd;
+  border-radius:6px; padding:2px 5px; cursor:pointer; line-height:1}
+.ptbtn.on{color:#0e5c86; border-color:#5aa7d6; background:#d5eaf6}
+.ptbtn:active{transform:scale(1.15)}
 .pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
 footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
@@ -93,7 +97,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.29 · Aug 13 2026 · part-time players</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.30 · Aug 13 2026 · PT button on chips</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -234,6 +238,11 @@ function chipEl(p, ti, inPool, num){
     ptiHtml=`<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
   }
   chip.innerHTML=`${numHtml}<span>${p[0]}</span>${tag}${ptiHtml}`;
+  const ptb=document.createElement('button');
+  ptb.className='ptbtn'+(a!=null?' on':'');
+  ptb.textContent='PT'; ptb.title=a!=null? 'Part-Time '+a+'% — tap to edit':'Mark Part-Time';
+  ptb.addEventListener('click',e=>{ e.stopPropagation(); ptDialogFor(ti, p[0]); });
+  chip.appendChild(ptb);
   chip.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',JSON.stringify({ti,name:p[0]}));
     chip.classList.add('dragging');});
   chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
@@ -504,17 +513,12 @@ function deleteTeam(ti){
   selected=null; editingTeam=null; updateHint(); render();
 }
 
-function updateHint(){
-  const h=document.getElementById('hint');
-  if(!selected){ h.innerHTML=''; return; }
-  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
-  const a=p? ptAvail(p):null;
-  h.innerHTML=`<b>${selected.name}</b> selected — tap a team header to move
-    <button class="pill" style="padding:3px 12px;font-size:11.5px;margin-left:8px" onclick="ptDialog()">${a!=null? 'Part-Time: '+a+'%':'Mark Part-Time…'}</button>`;
-}
-function ptDialog(){
-  if(!selected) return;
-  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+function updateHint(){document.getElementById('hint').innerHTML=selected?
+  `<b>${selected.name}</b> selected — tap a team header to move`:'';}
+let ptTarget=null;
+function ptDialogFor(ti, name){
+  ptTarget={ti, name};
+  const p=state[ti]?.players.find(x=>x[0]===name);
   if(!p) return;
   const a=ptAvail(p);
   const h=`<div style="font-size:13px;line-height:1.5">
@@ -533,8 +537,8 @@ function ptDialog(){
   showOverlay('Part-Time player', 'Part-time players are discounted toward the next man up, proportional to how often they sit.', 'doc', h);
 }
 function ptApply(){
-  if(!selected) return;
-  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  if(!ptTarget) return;
+  const p=state[ptTarget.ti]?.players.find(x=>x[0]===ptTarget.name);
   if(!p) return;
   const v=parseFloat(document.getElementById('ptpct').value);
   const k=parseFloat(document.getElementById('ptk').value);
@@ -544,8 +548,8 @@ function ptApply(){
   vmsg(p[0]+' marked Part-Time at '+p[3]+'%.');
 }
 function ptRemove(){
-  if(!selected) return;
-  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  if(!ptTarget) return;
+  const p=state[ptTarget.ti]?.players.find(x=>x[0]===ptTarget.name);
   if(!p) return;
   p.length=3;
   markEdited(); closeOverlay(); updateHint(); render();
@@ -1276,7 +1280,7 @@ function closeOverlay(){
 }
 (function(){
   const cb=document.getElementById('oclose');
-  cb.addEventListener('pointerup',e=>{e.preventDefault(); closeOverlay();});
+  cb.addEventListener('pointerdown',()=>{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
   cb.addEventListener('click',e=>{e.preventDefault(); closeOverlay();});
   const ov=document.getElementById('overlay');
   ov.addEventListener('click',e=>{ if(e.target===ov) closeOverlay(); });
