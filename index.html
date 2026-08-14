@@ -89,7 +89,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.27 · Aug 13 2026 · disclaimers</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.28 · Aug 13 2026 · load-more keeps scroll</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -991,7 +991,12 @@ function suggestFor(ti){
   sug={ti, sort:'conn', maxPti:'', avail:{pool:true, side:false, teams:true}, s1only:false, minconn:true, limit:20};
   renderSuggest();
 }
-function sugMore(){ if(sug){sug.limit+=20; renderSuggest();} }
+function sugMore(){ if(sug){
+  const ov=document.getElementById('overlay');
+  const st=ov? ov.scrollTop : 0;
+  sug.limit+=20; renderSuggest();
+  if(ov){ ov.scrollTop=st; requestAnimationFrame(()=>{ ov.scrollTop=st; }); }
+} }
 function sugMin(on){ if(sug){sug.minconn=on; if(!on && sug.sort==='conn') sug.sort='pti'; renderSuggest();} }
 function sugSort(s){ if(sug){sug.sort=s; renderSuggest();} }
 function sugMax(v){ if(sug){sug.maxPti=v; renderSuggest();} }
