@@ -69,6 +69,10 @@ button.pill:active{background:var(--ball); color:var(--ink)}
 .pchip .tag{font:600 10px 'IBM Plex Mono'; color:#5c6f66; background:#dfe7e0;
   border-radius:4px; padding:1px 5px}
 .pchip .pnum{font:600 11px 'IBM Plex Mono'; color:#8fae9f; min-width:18px; text-align:right}
+.pchip.pt{background:repeating-linear-gradient(135deg, #f2f6f0 0 7px, #e2ebe2 7px 14px)}
+.pchip .pttag{font:700 9.5px 'IBM Plex Mono'; color:#0e5c86; background:#d5eaf6; border:1px solid #9fcbe4;
+  border-radius:4px; padding:1px 5px; white-space:nowrap}
+.pchip .rawpti{font:500 10px 'IBM Plex Mono'; color:#96a89d; text-decoration:line-through; margin-left:2px}
 .pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
 footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
@@ -89,7 +93,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.28 · Aug 13 2026 · load-more keeps scroll</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.29 · Aug 13 2026 · part-time players</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -187,6 +191,19 @@ function rebaseline(src){
 }
 rebaseline(RAW);
 let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
+let ptK=0.5;
+function ptAvail(p){ return (p.length>3 && p[3]!=null)? p[3] : null; }
+function effOf(p, R){ const a=ptAvail(p); return a==null? p[1] : p[1] + ptK*(1-a/100)*(R-p[1]); }
+function effRefOf(t){
+  const raw=[...t.players].sort((a,b)=>a[1]-b[1]);
+  return raw.length? raw[Math.min(9,raw.length-1)][1] : 0;
+}
+function effList(t){
+  const raw=[...t.players].sort((a,b)=>a[1]-b[1]);
+  if(!raw.length) return [];
+  const R=raw[Math.min(9,raw.length-1)][1];
+  return raw.map(p=>({p, eff:effOf(p,R)})).sort((x,y)=>x.eff-y.eff);
+}
 const DEFAULT_LABEL='#1 · 6-Team (no LSF)';
 let scenLabel=DEFAULT_LABEL, scenEdited=false;
 function scenLabelFull(){ return scenLabel + (scenEdited? ' (edited)':''); }
@@ -204,7 +221,19 @@ function chipEl(p, ti, inPool, num){
   if(selected && selected.name===p[0] && selected.ti===ti) chip.classList.add('selected');
   const tag=(inPool && p[2])? `<span class="tag">${p[2]}</span>`:'';
   const numHtml=(num!==undefined)? `<span class="pnum">${num}.</span>`:'';
-  chip.innerHTML=`${numHtml}<span>${p[0]}</span>${tag}<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
+  const a=ptAvail(p);
+  let ptiHtml;
+  if(a!=null && !t.pool && !t.side){
+    const eff=effOf(p, effRefOf(t));
+    chip.classList.add('pt');
+    ptiHtml=`<span class="pttag">PT ${a}%</span><span class="pti ${eff<0?'elite':''}">${eff.toFixed(1)}</span><span class="rawpti">${p[1].toFixed(1)}</span>`;
+  } else if(a!=null){
+    chip.classList.add('pt');
+    ptiHtml=`<span class="pttag">PT ${a}%</span><span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
+  } else {
+    ptiHtml=`<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
+  }
+  chip.innerHTML=`${numHtml}<span>${p[0]}</span>${tag}${ptiHtml}`;
   chip.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',JSON.stringify({ti,name:p[0]}));
     chip.classList.add('dragging');});
   chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
@@ -306,7 +335,7 @@ function cardEl(t,ti){
   inner+=`<div class="plist"></div>`;
   card.innerHTML=inner;
   const list=card.querySelector('.plist');
-  let shown=[...t.players].sort((a,b)=>a[1]-b[1]);
+  let shown = poolish? [...t.players].sort((a,b)=>a[1]-b[1]) : effList(t).map(x=>x.p);
   if(renderCap && !poolish) shown=shown.slice(0,renderCap);
   if(t.pool){
     const total=shown.length;
@@ -378,7 +407,7 @@ function drawChart2(){
   const PAL=['#d9e64a','#5aa7ff','#ff7d9c','#2a9d5c','#e07b39','#c9a7ff','#7fd4c1','#f2d06b','#ff9e6e','#9ecae1'];
   const cuts=[4,6,8,10];
   const series=teams.map(t=>{
-    const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+    const vals=effList(t).map(x=>x.eff);
     return cuts.map(n=>{const k=Math.min(n,vals.length);
       return vals.slice(0,k).reduce((a,b)=>a+b,0)/k;});
   });
@@ -415,7 +444,7 @@ function drawChart3(){
   const rows=[];
   teamsAll.forEach((t,ti)=>{
     if(t.players.length<7) return;
-    const vals=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+    const vals=effList(t).map(x=>x.eff);
     const pts=slices.map(([a,b])=> vals.length>=b ? vals.slice(a,b).reduce((x,y)=>x+y,0)/(b-a) : null);
     rows.push({t, ti, pts});
   });
@@ -475,8 +504,53 @@ function deleteTeam(ti){
   selected=null; editingTeam=null; updateHint(); render();
 }
 
-function updateHint(){document.getElementById('hint').innerHTML=selected?
-  `<b>${selected.name}</b> selected — tap a team header to move`:'';}
+function updateHint(){
+  const h=document.getElementById('hint');
+  if(!selected){ h.innerHTML=''; return; }
+  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  const a=p? ptAvail(p):null;
+  h.innerHTML=`<b>${selected.name}</b> selected — tap a team header to move
+    <button class="pill" style="padding:3px 12px;font-size:11.5px;margin-left:8px" onclick="ptDialog()">${a!=null? 'Part-Time: '+a+'%':'Mark Part-Time…'}</button>`;
+}
+function ptDialog(){
+  if(!selected) return;
+  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  if(!p) return;
+  const a=ptAvail(p);
+  const h=`<div style="font-size:13px;line-height:1.5">
+    <b>${p[0]}</b> — availability
+    <div style="margin:10px 0"><input id="ptpct" type="number" min="5" max="100" step="5" value="${a!=null?a:50}"
+      style="width:80px;font:600 15px 'IBM Plex Mono';padding:5px;border-radius:8px;border:1.5px solid #23594a;background:#0e3b2e;color:#eef4ee"> % of matches</div>
+    <div style="margin:10px 0">League PT discount factor k
+      <input id="ptk" type="number" min="0" max="1" step="0.05" value="${ptK}"
+      style="width:70px;font:600 14px 'IBM Plex Mono';padding:4px;border-radius:8px;border:1.5px solid #23594a;background:#0e3b2e;color:#eef4ee"></div>
+    <div style="color:#8fae9f;font-size:11.5px">Effective PTI = PTI + k × (1 − availability) × (nextManUp − PTI),
+    where nextManUp is the team's 10th-ranked PTI. Stats, ranks and charts use effective values; the chip shows both.</div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="pill" style="padding:5px 16px" onclick="ptApply()">Apply</button>
+      ${a!=null? '<button class="pill" style="padding:5px 16px;color:#e07b39;border-color:#e07b39" onclick="ptRemove()">Remove Part-Time</button>':''}
+    </div></div>`;
+  showOverlay('Part-Time player', 'Part-time players are discounted toward the next man up, proportional to how often they sit.', 'doc', h);
+}
+function ptApply(){
+  if(!selected) return;
+  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  if(!p) return;
+  const v=parseFloat(document.getElementById('ptpct').value);
+  const k=parseFloat(document.getElementById('ptk').value);
+  if(!isNaN(k)) ptK=Math.max(0,Math.min(1,k));
+  if(!isNaN(v)){ while(p.length<3) p.push(''); p[3]=Math.max(5,Math.min(100,Math.round(v))); }
+  markEdited(); closeOverlay(); updateHint(); render();
+  vmsg(p[0]+' marked Part-Time at '+p[3]+'%.');
+}
+function ptRemove(){
+  if(!selected) return;
+  const p=state[selected.ti]?.players.find(x=>x[0]===selected.name);
+  if(!p) return;
+  p.length=3;
+  markEdited(); closeOverlay(); updateHint(); render();
+  vmsg(p[0]+' back to full-time.');
+}
 function resetRAW(){state=deepcopy(RAW); rebaseline(RAW); setScen(DEFAULT_LABEL); selected=null; updateHint(); render();}
 async function resetAll(){
   try{
@@ -633,7 +707,7 @@ async function deleteShared(btn,nm){
   try{ await window.storage.delete('sver:'+nm, true); renderShared(); }catch(e){}
 }
 function teamStats(t){
-  const v=t.players.map(p=>p[1]).sort((a,b)=>a-b);
+  const v=effList(t).map(x=>x.eff);
   const tn=n=>{ if(v.length<n) return NaN; return v.slice(0,n).reduce((a,b)=>a+b,0)/n; };
   const b410=v.length>=10? v.slice(6,10).reduce((a,b)=>a+b,0)/4:NaN;
   const mean=v.length? v.reduce((a,b)=>a+b,0)/v.length:NaN;
@@ -657,8 +731,10 @@ function exportCSV(){
   rows.push(teams.map(()=>'Player,PTI').join(','));
   for(let r=0;r<maxN;r++){
     rows.push(teams.map(t=>{
-      const pl=[...t.players].sort((a,b)=>a[1]-b[1])[r];
-      return pl? esc(pl[0])+','+pl[1].toFixed(1) : ',';
+      const el=effList(t)[r];
+      if(!el) return ',';
+      const a=ptAvail(el.p);
+      return esc(el.p[0]+(a!=null?' (PT '+a+'%)':''))+','+el.eff.toFixed(1);
     }).join(','));
   }
   rows.push('');
