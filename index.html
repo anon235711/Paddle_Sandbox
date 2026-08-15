@@ -99,7 +99,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.33 · Aug 13 2026 · PT X=15 default</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.34 · Aug 13 2026 · PT k=0.25 default</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -197,7 +197,7 @@ function rebaseline(src){
 }
 rebaseline(RAW);
 let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
-let ptK=0.5, ptX=15.0;
+let ptK=0.25, ptX=15.0;
 function ptAvail(p){ return (p.length>3 && p[3]!=null)? p[3] : null; }
 function effOf(p){ const a=ptAvail(p); return a==null? p[1] : p[1] + ptK*(1-a/100)*(ptX-p[1]); }
 function effList(t){
