@@ -99,7 +99,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.36 · Aug 13 2026 · No MSC default</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.37 · Aug 13 2026 · PT-aware stat cells</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -188,21 +188,21 @@ const CONN = {"james franke":{"john watrous":[0,1,0,0],"matt ward":[0,1,0,0],"vu
 const S1EXP = new Set(["aaron mabra", "adam morgan", "adam schumacher", "addom powell", "alex cotard", "alex lambropoulos", "andrew buchholz", "andrew heinlein", "andrew lockhart", "andrew ong", "andrew tomson", "andy goodrich", "anthony appleyard", "anthony mcpherson", "arun jagasia", "audrius verbickas", "ben ashford", "ben kimmel", "ben mcknight", "ben van dixhorn", "ben williams", "blake schafer", "bradford smith", "brandon fisher", "brett binkley", "brett morse karzen", "brian panek", "brian saltzman", "brooks harding", "bryan bertola", "bryan fox", "bryant mcwhorter", "cameron slabbert", "carl bartholomay", "charles leger", "charlie howard", "charlie pfister", "charlie phillips", "charlie usher", "chris baker", "chris lashmet", "christian duchnak", "christopher williams", "connor casas", "connor parks", "connor roth", "dan rosenberg", "dan shapiro", "dane schmidgall", "daniel levine", "daniel mcguire", "danny oakes", "dave fritzsche", "david bukowski", "david parker", "david williams", "david zak", "derek fish", "drake weyermuller", "eddie delacruz", "eddie trapp", "eric koppmann", "eric pohl", "erik billings", "gabe korach", "graham mcnerney", "greg wotring", "harold martin", "harry sullivan", "henry crowe", "jacob groce", "jacob mayles", "james franke", "james goldman", "jason love", "jay woldenberg", "jeff martin", "jeff rightnour", "jeremy edelson", "jeremy shull", "jeronie barnes", "jim bowers", "jim kozak", "john noble", "john silk", "john watrous", "jon newlin", "jonas merckx", "josh graves", "josh hinterlong", "josh kritzler", "josh wittenberg", "jp gallagher", "karl morgan", "kian dowlatshahi", "luke figora", "mackey pierce", "marek czerwinski", "mark cunnington", "mark schaefer", "matt harris", "matt lemery", "matt wierzel", "matthew warner", "michael benson", "michael franco", "mick parks", "mike chabraja", "mike marino", "mike rahaley", "mike sims", "mike wilkins", "paget neave", "pat usher", "patrick bouchard", "paul garvin", "paul rose", "peter berka", "peter dehaan", "peter hammond", "peter rose", "peter slaven", "peter stellas jr", "radek guzik", "reece acree", "reed schaefer", "rich karban", "rishi goel", "rob goeckel", "robb rickett", "robert stineman", "ryan edlefsen", "ryan mullaney iii", "sam meyer", "sasha djordjevic", "scott bondurant", "scott green", "scott hill", "scott mansager", "scott rutherford", "stephen larko", "steve baby", "stu bradley", "teddy boucquemont", "timothy kessler", "todd nelson", "todd schaefer", "tom concklin", "tom davis", "tom mcneela", "tom moore", "tom morton", "tom rowland", "tommy sullivan", "trever koek", "trey minter", "trey scott", "vince lombardi", "vineeth gossain", "vukasin teofanovic", "wally pfenning", "will colmar"]);
 RAW.forEach((t,i)=>{ if(t.id===undefined) t.id=i; });
 let BASE = {}, HOME = {};
-function rebaseline(src){
-  BASE = {}; HOME = {};
-  src.forEach(t=>{
-    if(!t.pool && !t.side) BASE[t.id]=t.players.map(p=>p[1]);
-    t.players.forEach(p=>{ if(!(p[0] in HOME)) HOME[p[0]]=t.id; });
-  });
-}
-rebaseline(RAW);
-let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
 let ptK=0.25, ptX=15.0;
 function ptAvail(p){ return (p.length>3 && p[3]!=null)? p[3] : null; }
 function effOf(p){ const a=ptAvail(p); return a==null? p[1] : p[1] + ptK*(1-a/100)*(ptX-p[1]); }
 function effList(t){
   return [...t.players].map(p=>({p, eff:effOf(p)})).sort((x,y)=>x.eff-y.eff);
 }
+function rebaseline(src){
+  BASE = {}; HOME = {};
+  src.forEach(t=>{
+    if(!t.pool && !t.side) BASE[t.id]=effList(t).map(x=>x.eff);
+    t.players.forEach(p=>{ if(!(p[0] in HOME)) HOME[p[0]]=t.id; });
+  });
+}
+rebaseline(RAW);
+let state, selected=null, nextId=RAW.length, editingTeam=null, pendingDelete=null, multi=null, renderCap=null;
 const DEFAULT_LABEL='#1 · 6-Team: No MSC (+Will/Adam)';
 let scenLabel=DEFAULT_LABEL, scenEdited=false;
 function scenLabelFull(){ return scenLabel + (scenEdited? ' (edited)':''); }
@@ -271,7 +271,7 @@ function cardEl(t,ti){
   let inner=`<div class="thead"><div style="display:flex;flex-direction:column;gap:1px;min-width:0">${nameHtml}
     <span class="count">${t.players.length} players</span></div><span class="hbtns"></span></div>`;
   if(!poolish){
-    const ptis=t.players.map(p=>p[1]); let stats='';
+    const ptis=effList(t).map(x=>x.eff); let stats='';
     const league=state.filter(x=>!x.pool&&!x.side&&x.players.length>0);
     const bot410=arr=>{ if(arr.length<10) return NaN;
       const v=[...arr].sort((a,b)=>a-b).slice(6,10); return v.reduce((a,b)=>a+b,0)/4; };
@@ -284,7 +284,7 @@ function cardEl(t,ti){
           dhtml=(d<0?'▼':'▲')+' = '+fmt(Math.abs(d))+' '+(d<0?'better':'worse');}}
       let rkhtml='&nbsp;', avghtml='&nbsp;';
       if(has && league.filter(x=>x.players.length>=n).length>1){
-        const all=league.filter(x=>x.players.length>=n).map(x=>topN(x.players.map(p=>p[1]),n)).sort((a,b)=>a-b);
+        const all=league.filter(x=>x.players.length>=n).map(x=>topN(effList(x).map(e=>e.eff),n)).sort((a,b)=>a-b);
         const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
         const frac=(rank-1)/(all.length-1);
         const hue=Math.round(140*(1-frac));
@@ -309,7 +309,7 @@ function cardEl(t,ti){
       let rkhtml='&nbsp;', avghtml='&nbsp;';
       const elig=league.filter(x=>x.players.length>=10);
       if(has && elig.length>1){
-        const all=elig.map(x=>bot410(x.players.map(p=>p[1]))).sort((a,b)=>a-b);
+        const all=elig.map(x=>bot410(effList(x).map(e=>e.eff))).sort((a,b)=>a-b);
         const rank=all.findIndex(x=>Math.abs(x-v)<1e-9)+1;
         const frac=(rank-1)/(all.length-1);
         const hue=Math.round(140*(1-frac));
