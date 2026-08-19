@@ -61,7 +61,7 @@ button.pill:active{background:var(--ball); color:var(--ink); transform:scale(.94
   cursor:grab; user-select:none; border:1.5px solid transparent;}
 .pool .pchip{font-size:12.5px; padding:5px 8px; gap:6px}
 .pchip:active{cursor:grabbing}
-.pchip.selected{border-color:var(--ball); background:#fbffd6}
+.pchip.selected{border-color:#5c655f; background:#b7bcb8}
 .pchip.dragging{opacity:.45}
 .pchip .pti{margin-left:auto; font:600 13px 'IBM Plex Mono'}
 .pool .pchip .pti{font-size:11.5px}
@@ -70,7 +70,7 @@ button.pill:active{background:var(--ball); color:var(--ink); transform:scale(.94
   border-radius:4px; padding:1px 5px}
 .pchip .pnum{font:600 11px 'IBM Plex Mono'; color:#8fae9f; min-width:18px; text-align:right}
 .pchip.pt{background:repeating-linear-gradient(135deg, #f4f8f2 0 7px, #cfdfd2 7px 14px); border:1.5px solid #8fb49b}
-.pchip.pt.selected{background:repeating-linear-gradient(135deg, #fbffd6 0 7px, #eef2b8 7px 14px); border-color:var(--ball)}
+.pchip.pt.selected, .pchip.pt.tent.selected{background:repeating-linear-gradient(135deg, #c6cbc7 0 7px, #aeb4af 7px 14px); border-color:#5c655f}
 .pchip.pt.dragging{opacity:.45}
 .pchip .pttag{font:700 9.5px 'IBM Plex Mono'; color:#0e5c86; background:#d5eaf6; border:1px solid #9fcbe4;
   border-radius:4px; padding:1px 5px; white-space:nowrap}
@@ -83,9 +83,9 @@ button.pill:active{background:var(--ball); color:var(--ink); transform:scale(.94
   color:#2a9d5c; background:transparent; border:1.5px solid #9cc7ab; border-radius:50%; cursor:pointer; line-height:1; flex:0 0 auto}
 .tbtn.q{color:#9a7d0a; border-color:#d4b64a; background:#f7efc8}
 .tbtn:active{transform:scale(1.15)}
-.pchip.tent{color:#9a7d0a}
-.pchip.tent .pti{color:#9a7d0a}
-.pchip.tent .pti.elite{color:#9a7d0a}
+.pchip.tent{background:#fbf3b8; border:1.5px solid #d4b64a}
+.pchip.tent.selected{background:#b7bcb8; border-color:#5c655f}
+.pchip.pt.tent{background:repeating-linear-gradient(135deg, #fdf6c9 0 7px, #efe19a 7px 14px); border-color:#d4b64a}
 .pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
 footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
@@ -106,7 +106,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.38 · Aug 13 2026 · confirmed/tentative toggle</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.39 · Aug 13 2026 · tent highlight + grey select</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -254,7 +254,9 @@ function chipEl(p, ti, inPool, num){
   tb.textContent=isTent(p)?'?':'✓';
   tb.title=isTent(p)?'Tentative — tap to confirm':'Confirmed — tap to mark tentative';
   tb.addEventListener('click',e=>{ e.stopPropagation(); tentToggle(ti, p[0]); });
-  chip.insertBefore(tb, chip.firstChild);
+  const numEl=chip.querySelector('.pnum');
+  if(numEl) numEl.insertAdjacentElement('afterend', tb);
+  else chip.insertBefore(tb, chip.firstChild);
   const ptb=document.createElement('button');
   ptb.className='ptbtn'+(a!=null?' on':'');
   ptb.textContent='PT'; ptb.title=a!=null? 'Part-Time '+a+'% — tap to edit':'Mark Part-Time';
