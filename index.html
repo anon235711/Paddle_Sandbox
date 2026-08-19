@@ -79,6 +79,13 @@ button.pill:active{background:var(--ball); color:var(--ink); transform:scale(.94
   border-radius:6px; padding:2px 5px; cursor:pointer; line-height:1}
 .ptbtn.on{color:#0e5c86; border-color:#5aa7d6; background:#d5eaf6}
 .ptbtn:active{transform:scale(1.15)}
+.tbtn{font:800 11px 'Barlow'; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center;
+  color:#2a9d5c; background:transparent; border:1.5px solid #9cc7ab; border-radius:50%; cursor:pointer; line-height:1; flex:0 0 auto}
+.tbtn.q{color:#9a7d0a; border-color:#d4b64a; background:#f7efc8}
+.tbtn:active{transform:scale(1.15)}
+.pchip.tent{color:#9a7d0a}
+.pchip.tent .pti{color:#9a7d0a}
+.pchip.tent .pti.elite{color:#9a7d0a}
 .pchip.moved{box-shadow:inset 3px 0 0 var(--ball)}
 footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b3226;color:var(--ball);
@@ -99,7 +106,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.37 · Aug 13 2026 · PT-aware stat cells</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.38 · Aug 13 2026 · confirmed/tentative toggle</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -190,6 +197,14 @@ RAW.forEach((t,i)=>{ if(t.id===undefined) t.id=i; });
 let BASE = {}, HOME = {};
 let ptK=0.25, ptX=15.0;
 function ptAvail(p){ return (p.length>3 && p[3]!=null)? p[3] : null; }
+function isTent(p){ return p.length>4 && !!p[4]; }
+function setTent(p, on){ while(p.length<4) p.push(null); if(p.length<5) p.push(0); p[4]=on?1:0; }
+function tentToggle(ti, name){
+  const p=state[ti]?.players.find(x=>x[0]===name);
+  if(!p) return;
+  setTent(p, !isTent(p));
+  markEdited(); render();
+}
 function effOf(p){ const a=ptAvail(p); return a==null? p[1] : p[1] + ptK*(1-a/100)*(ptX-p[1]); }
 function effList(t){
   return [...t.players].map(p=>({p, eff:effOf(p)})).sort((x,y)=>x.eff-y.eff);
@@ -233,6 +248,13 @@ function chipEl(p, ti, inPool, num){
     ptiHtml=`<span class="pti ${p[1]<0?'elite':''}">${p[1].toFixed(1)}</span>`;
   }
   chip.innerHTML=`${numHtml}<span>${p[0]}</span>${tag}${ptiHtml}`;
+  if(isTent(p)) chip.classList.add('tent');
+  const tb=document.createElement('button');
+  tb.className='tbtn'+(isTent(p)?' q':'');
+  tb.textContent=isTent(p)?'?':'✓';
+  tb.title=isTent(p)?'Tentative — tap to confirm':'Confirmed — tap to mark tentative';
+  tb.addEventListener('click',e=>{ e.stopPropagation(); tentToggle(ti, p[0]); });
+  chip.insertBefore(tb, chip.firstChild);
   const ptb=document.createElement('button');
   ptb.className='ptbtn'+(a!=null?' on':'');
   ptb.textContent='PT'; ptb.title=a!=null? 'Part-Time '+a+'% — tap to edit':'Mark Part-Time';
@@ -552,7 +574,7 @@ function ptRemove(){
   if(!ptTarget) return;
   const p=state[ptTarget.ti]?.players.find(x=>x[0]===ptTarget.name);
   if(!p) return;
-  p.length=3;
+  p[3]=null;
   markEdited(); closeOverlay(); updateHint(); render();
   vmsg(p[0]+' back to full-time.');
 }
