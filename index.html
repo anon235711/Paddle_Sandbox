@@ -106,7 +106,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.40 · Aug 13 2026 · lighter tent + inverted toggle</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.41 · Aug 14 2026 · overlay close fix v3</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -1300,17 +1300,22 @@ function autoBuild(ti){
     'Optimized for internal connectivity plus competitiveness benchmarked to the best current team at each depth cut.',
     'doc', h);
 }
+let _closeGuard=0;
 function closeOverlay(){
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   document.getElementById('overlay').classList.remove('open');
+  _closeGuard=Date.now();
 }
 document.addEventListener('touchstart',()=>{},{passive:true}); // enables :active on iOS
+document.addEventListener('click', e=>{
+  if(Date.now()-_closeGuard < 450){ e.stopPropagation(); e.preventDefault(); }
+}, true);
 (function(){
   const cb=document.getElementById('oclose');
-  cb.addEventListener('pointerdown',()=>{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
-  cb.addEventListener('click',e=>{e.preventDefault(); closeOverlay();});
+  cb.addEventListener('pointerdown',e=>{ e.preventDefault(); closeOverlay(); });
+  cb.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); closeOverlay(); });
   const ov=document.getElementById('overlay');
-  ov.addEventListener('click',e=>{ if(e.target===ov) closeOverlay(); });
+  ov.addEventListener('pointerdown',e=>{ if(e.target===ov){ e.preventDefault(); closeOverlay(); } });
 })();
 window.addEventListener('resize',()=>{drawChart();});
 if('scrollRestoration' in history) history.scrollRestoration='manual';
