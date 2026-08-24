@@ -106,7 +106,7 @@ footer{margin-top:18px;font-size:11.5px;color:#8fae9f}
 </head>
 <body>
 <header>
-  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.42 · Aug 14 2026 · preset 1 refresh</span></h1>
+  <h1>Series 1 Roster Sandbox <span class="ball">●</span> <span style="font:600 12px 'IBM Plex Mono';color:#8fae9f;vertical-align:middle;letter-spacing:0">build v4.43 · Aug 14 2026 · code checksums + PDF stripes</span></h1>
   <div id="scenlabel" style="margin-top:6px;font:600 13px 'IBM Plex Mono';color:var(--ball)"></div>
   <div id="disclaimers" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
     <span style="font:800 14px 'Barlow',sans-serif;color:#3ddc84;border:2.5px solid #3ddc84;border-radius:10px;padding:6px 14px;letter-spacing:.07em;background:rgba(61,220,132,.09)">PURELY HYPOTHETICAL</span>
@@ -660,22 +660,42 @@ function importVersion(ev){
     }catch(e){ const m=document.getElementById('vermsg'); if(m) m.textContent='That file is not a saved roster version.'; } };
   rd.readAsText(f); ev.target.value='';
 }
+const CRC_T=(()=>{const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c;}
+  return t;})();
+function crc32(u8){let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) c=CRC_T[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
 async function stateToCode(){
   const json=JSON.stringify({state, nextId});
   const bytes=new TextEncoder().encode(json);
   try{
     const cs=new CompressionStream('deflate-raw');
-    const comp=await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
-    return 'z:'+btoa(String.fromCharCode(...new Uint8Array(comp)));
+    const comp=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer());
+    const crc=crc32(comp);
+    const out=new Uint8Array(comp.length+4);
+    out.set(comp); new DataView(out.buffer).setUint32(comp.length, crc, true);
+    let s=''; for(let i=0;i<out.length;i++) s+=String.fromCharCode(out[i]);
+    return 'c:'+btoa(s);
   }catch(e){ return 'p:'+btoa(unescape(encodeURIComponent(json))); }
 }
+async function inflateRaw(bin){
+  const ds=new DecompressionStream('deflate-raw');
+  return await new Response(new Blob([bin]).stream().pipeThrough(ds)).text();
+}
 async function codeToState(code){
-  code=code.trim();
+  code=code.replace(/\s+/g,'');
+  if(code.startsWith('c:')){
+    const all=Uint8Array.from(atob(code.slice(2)), c=>c.charCodeAt(0));
+    if(all.length<5) throw new Error('code truncated');
+    const body=all.subarray(0, all.length-4);
+    const want=new DataView(all.buffer, all.length-4, 4).getUint32(0, true);
+    if(crc32(body)!==want) throw new Error('CHECKSUM: code damaged in transit — ask the sender to re-copy and re-send it (or share via Export file).');
+    return JSON.parse(await inflateRaw(body));
+  }
   if(code.startsWith('z:')){
     const bin=Uint8Array.from(atob(code.slice(2)), c=>c.charCodeAt(0));
-    const ds=new DecompressionStream('deflate-raw');
-    const raw=await new Response(new Blob([bin]).stream().pipeThrough(ds)).text();
-    return JSON.parse(raw);
+    return JSON.parse(await inflateRaw(bin));
   }
   if(code.startsWith('p:')) return JSON.parse(decodeURIComponent(escape(atob(code.slice(2)))));
   throw new Error('bad code');
@@ -694,7 +714,10 @@ async function loadShareCode(){
     state=d.state; nextId=d.nextId||state.length; rebaseline(state); selected=null; editingTeam=null; updateHint(); render();
     setScen('Imported code · '+new Date().toLocaleDateString());
     vmsg('Scenario loaded from code.'); inp.value='';
-  }catch(e){ vmsg('That code could not be read.'); }
+  }catch(e){
+    const m=String(e && e.message || e);
+    vmsg(m.startsWith('CHECKSUM')? m.slice(9).trim() : 'Could not read that code — check it was copied completely.');
+  }
 }
 const CLOUD = typeof window!=='undefined' && window.storage && typeof window.storage.list==='function';
 async function renderShared(){
@@ -867,7 +890,14 @@ async function exportPDF(){
       const cards=[...document.querySelectorAll('#board .card')];
       const shots=[];
       for(const card of cards){
-        const cv=await html2canvas(card, {scale:2, backgroundColor:'#12483a', logging:false});
+        const cv=await html2canvas(card, {scale:2, backgroundColor:'#12483a', logging:false, onclone:(cdoc)=>{
+          const tile=(c1,c2)=>'url("data:image/svg+xml;utf8,'+encodeURIComponent(
+            `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><rect width='14' height='14' fill='${c1}'/><path d='M-3.5 10.5 L10.5 -3.5 M3.5 17.5 L17.5 3.5 M-10.5 17.5 L17.5 -10.5' stroke='${c2}' stroke-width='7'/></svg>`)+'") repeat';
+          cdoc.querySelectorAll('.pchip.pt').forEach(ch=>{
+            const tent=ch.classList.contains('tent');
+            ch.style.background = tent? tile('#fdf9d9','#f3e9b4') : tile('#f4f8f2','#cfdfd2');
+          });
+        }});
         shots.push({data:cv.toDataURL('image/png'), w:cv.width, h:cv.height});
       }
       const cols=shots.length>6? 3 : (shots.length>4? 3 : 2);
